@@ -115,6 +115,7 @@ function sanitizeGitError(error) {
   return sanitized
     .replace(/x-access-token:[^@\\s]+@/g, "x-access-token:[redacted]@")
     .replace(/Authorization: Bearer\s+[^\s]+/gi, "Authorization: Bearer [redacted]")
+    .replace(/Authorization: Basic\s+[A-Za-z0-9+/=]+/gi, "Authorization: Basic [redacted]")
     .slice(0, 2000);
 }
 
@@ -150,7 +151,8 @@ function cloneArgs(repoUrl, repoPath, branchName) {
   const baseArgs = ["clone", "--depth", "1"];
   if (branchName) baseArgs.push("--branch", branchName);
   if (GITHUB_TOKEN && repoUrl.startsWith("https://github.com/")) {
-    baseArgs.push("-c", `http.https://github.com/.extraheader=Authorization: Bearer ${GITHUB_TOKEN}`);
+    const basicToken = Buffer.from(`x-access-token:${GITHUB_TOKEN}`).toString("base64");
+    baseArgs.push("-c", `http.https://github.com/.extraheader=Authorization: Basic ${basicToken}`);
   }
   return [...baseArgs, repoUrl, repoPath];
 }
