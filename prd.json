@@ -2,12 +2,11 @@
   "project": "ralph-kanban",
   "version": "1.0.0",
   "createdAt": "2026-05-06T03:27:02.908Z",
-  "updatedAt": "2026-05-06T18:40:33.024Z",
+  "updatedAt": "2026-05-06T18:58:56.996Z",
   "activeRequest": {
-    "id": "R007",
-    "text": "Este projeto está hospedado na vps que eu acesso por ssh no docker worker-ldfqzk0eotp62e6oby4gbypw-075036591444, preciso que você tente corrigir esse erro que deu em um projeto: Falha ao preparar Git workspace. Command failed: git clone --depth 1 https://github.com/Ghedyvan/inertial-eclipse.git /app/data/workspaces/bd39e4eb-7ff3-4a74-8bfb-1e19a3e397af/4780f66c-bd01-4b56-9bbc-607584294803/repo Cloning into '/app/data/workspaces/bd39e4eb-7ff3-4a74-8bfb-1e19a3e397af/4780f66c-bd01-4b56-9bbc-607584294803/repo'... fatal: could not read Username for 'https://github.com': No such device or address",
-    "createdAt": "2026-05-06T18:37:11.671Z",
-    "maxStories": null
+    "id": "R008",
+    "text": "Continuar R007: acessar VPS via ssh administrator@93.127.142.13, aplicar correção de clone Git no worker Docker e validar sem expor secrets.",
+    "createdAt": "2026-05-06T18:41:49.999Z"
   },
   "requests": [
     {
@@ -50,6 +49,12 @@
       "id": "R007",
       "text": "Este projeto está hospedado na vps que eu acesso por ssh no docker worker-ldfqzk0eotp62e6oby4gbypw-075036591444, preciso que você tente corrigir esse erro que deu em um projeto: Falha ao preparar Git workspace. Command failed: git clone --depth 1 https://github.com/Ghedyvan/inertial-eclipse.git /app/data/workspaces/bd39e4eb-7ff3-4a74-8bfb-1e19a3e397af/4780f66c-bd01-4b56-9bbc-607584294803/repo Cloning into '/app/data/workspaces/bd39e4eb-7ff3-4a74-8bfb-1e19a3e397af/4780f66c-bd01-4b56-9bbc-607584294803/repo'... fatal: could not read Username for 'https://github.com': No such device or address",
       "createdAt": "2026-05-06T18:37:11.671Z",
+      "status": "blocked"
+    },
+    {
+      "id": "R008",
+      "text": "Continuar R007: acessar VPS via ssh administrator@93.127.142.13, aplicar correção de clone Git no worker Docker e validar sem expor secrets.",
+      "createdAt": "2026-05-06T18:41:49.999Z",
       "status": "blocked"
     }
   ],
@@ -578,6 +583,51 @@
       "passes": false,
       "notes": "Validacao final e registro de deploy VPS iniciados.\nValidacoes locais passaram: npm run lint, npm run typecheck, npm run worker:once e npm run build. Aplicacao remota bloqueada: hostname SSH real nao disponivel; nome informado e container Docker e nao resolve localmente; alias SSH local e placeholder NomeDaSuaVPS. Correção local pronta para deploy.",
       "updatedAt": "2026-05-06T18:40:33.024Z"
+    },
+    {
+      "id": "S036",
+      "requestId": "R008",
+      "title": "Acessar VPS e localizar deploy Docker",
+      "description": "Conectar em administrator@93.127.142.13, listar containers/servicos e localizar worker Ralph sem expor secrets.",
+      "acceptanceCriteria": [
+        "SSH conecta ou bloqueio fica claro.",
+        "Container/stack worker identificado.",
+        "Nenhum secret e impresso."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Tentando SSH com timeout duro via perl alarm para evitar travamento.\nSSH conectou em administrator@93.127.142.13; Docker acessivel via sudo. Worker identificado: worker-ldfqzk0eotp62e6oby4gbypw-075036591444, imagem ldfqzk0eotp62e6oby4gbypw_worker:682b8b1bd3c92b0ddb87d8234f829fe1efeb552e, status unhealthy. Teste dentro do worker confirmou RALPH_GIT_ENABLED=1 e ausencia de GITHUB_TOKEN/GH_TOKEN/RALPH_GITHUB_TOKEN; git ls-remote do repo falha com could not read Username.",
+      "updatedAt": "2026-05-06T18:54:11.224Z"
+    },
+    {
+      "id": "S037",
+      "requestId": "R008",
+      "title": "Aplicar correção no deploy remoto",
+      "description": "Atualizar imagem/codigo/config do worker remoto para usar correção de auth Git e token env apropriado.",
+      "acceptanceCriteria": [
+        "Correcao entra no servico worker remoto.",
+        "Env de token e verificado apenas por presenca, sem valor.",
+        "Worker e reiniciado/redeployado com seguranca."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Aplicando patch de codigo no worker remoto sem alterar .env/secrets; commit 851d937 ja enviado ao GitHub para proximo redeploy.\nCommit 851d937 enviado para origin/main. Worker remoto recebeu hotpatch em /app/scripts/worker.mjs via docker cp e foi reiniciado. Verificado dentro do container: codigo agora aceita RALPH_GITHUB_TOKEN/GITHUB_TOKEN/GH_TOKEN e desativa prompt Git. Env de token verificado por presenca: GITHUB_TOKEN/GH_TOKEN existem no Coolify mas estao vazios; RALPH_GITHUB_TOKEN ausente.",
+      "updatedAt": "2026-05-06T18:57:50.539Z"
+    },
+    {
+      "id": "S038",
+      "requestId": "R008",
+      "title": "Validar clone Git no worker remoto",
+      "description": "Executar validacao remota segura do clone do repo inertial-eclipse e registrar resultado.",
+      "acceptanceCriteria": [
+        "Clone ou ls-remote remoto valida acesso Git.",
+        "Logs/status do worker checados.",
+        "progress.txt registra resultado e proximos passos."
+      ],
+      "status": "blocked",
+      "passes": false,
+      "notes": "Validando clone remoto apos hotpatch; expectativa: ainda bloqueado ate configurar token GitHub.\nRedeploy remoto validado na imagem 851d93737d5c724163c167b6314ffff4782253db; worker novo contem codigo corrigido. Validacao Git no container ainda retorna auth_required porque GITHUB_TOKEN, GH_TOKEN e RALPH_GITHUB_TOKEN estao vazios/ausentes. Clone real fica bloqueado ate configurar token GitHub com acesso de leitura ao repo inertial-eclipse.",
+      "updatedAt": "2026-05-06T18:58:56.996Z"
     }
   ]
 }

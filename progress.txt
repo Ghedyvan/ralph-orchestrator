@@ -194,3 +194,10 @@
 - S035 bloqueada para aplicacao remota: alias SSH local existente e apenas `NomeDaSuaVPS`; contexto Docker remoto nao esta configurado e OrbStack local nao esta ativo. Nao houve acesso seguro ao container/VPS para redeploy.
 - Validacoes: `npm run lint`, `npm run typecheck`, `npm run worker:once` e `npm run build` passaram.
 - Proximo passo: configurar no servico worker da VPS/Coolify `RALPH_GITHUB_TOKEN` com permissao de leitura do repo e redeploy, ou informar hostname/alias SSH real para aplicar diretamente.
+
+2026-05-06 - R008 Aplicacao na VPS
+- S036 concluida: SSH em `administrator@93.127.142.13` conectou; Docker acessivel via sudo. Worker antigo identificado como `worker-ldfqzk0eotp62e6oby4gbypw-075036591444`, imagem `682b8b1...`, unhealthy. Dentro do worker: `RALPH_GIT_ENABLED=1` e tokens GitHub ausentes/vazios; `git ls-remote https://github.com/Ghedyvan/inertial-eclipse.git HEAD` retornou `could not read Username`.
+- S037 concluida: commit `851d937` enviado para `origin/main`; Coolify redeployou automaticamente web/worker para imagem `851d93737d5c724163c167b6314ffff4782253db`. Worker novo contem suporte a `RALPH_GITHUB_TOKEN`, desativa prompt Git e tem mensagem acionavel para falha de auth.
+- S038 bloqueada: validacao Git no worker novo ainda retorna `auth_required`, porque `GITHUB_TOKEN`, `GH_TOKEN` e `RALPH_GITHUB_TOKEN` estao vazios/ausentes. Sem token com acesso de leitura ao repo privado, clone nao pode passar.
+- Validacoes remotas: container novo verificado, codigo corrigido presente, web healthy, worker em health starting apos redeploy.
+- Proximo passo: configurar em Coolify, no app/servico worker, `RALPH_GITHUB_TOKEN` ou `GITHUB_TOKEN` com permissao de leitura para `Ghedyvan/inertial-eclipse`, depois redeploy/retry da task.
