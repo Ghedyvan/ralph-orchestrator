@@ -1,21 +1,23 @@
-FROM node:22-alpine AS deps
+FROM node:22-bookworm-slim AS deps
 WORKDIR /app
 RUN corepack enable && corepack prepare yarn@1.22.22 --activate
 COPY package.json yarn.lock ./
-RUN yarn install --frozen-lockfile --non-interactive --ignore-engines --production=false --network-timeout 600000 --verbose \
+RUN yarn install --frozen-lockfile --non-interactive --ignore-engines --production=false --network-timeout 600000 --network-concurrency 1 --child-concurrency 1 \
   || (cat yarn-error.log 2>/dev/null || true; exit 1)
 
-FROM node:22-alpine AS builder
+FROM node:22-bookworm-slim AS builder
 WORKDIR /app
 RUN corepack enable && corepack prepare yarn@1.22.22 --activate
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN yarn build
 
-FROM node:22-alpine AS runner
+FROM node:22-bookworm-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
-RUN apk add --no-cache git github-cli wget \
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates git wget \
+  && rm -rf /var/lib/apt/lists/* \
   && corepack enable \
   && corepack prepare yarn@1.22.22 --activate
 COPY --from=builder /app/.next ./.next
