@@ -2,7 +2,7 @@
   "project": "ralph-kanban",
   "version": "1.0.0",
   "createdAt": "2026-05-06T03:27:02.908Z",
-  "updatedAt": "2026-05-06T18:58:56.996Z",
+  "updatedAt": "2026-05-06T19:02:08.511Z",
   "activeRequest": {
     "id": "R008",
     "text": "Continuar R007: acessar VPS via ssh administrator@93.127.142.13, aplicar correção de clone Git no worker Docker e validar sem expor secrets.",
@@ -628,6 +628,21 @@
       "passes": false,
       "notes": "Validando clone remoto apos hotpatch; expectativa: ainda bloqueado ate configurar token GitHub.\nRedeploy remoto validado na imagem 851d93737d5c724163c167b6314ffff4782253db; worker novo contem codigo corrigido. Validacao Git no container ainda retorna auth_required porque GITHUB_TOKEN, GH_TOKEN e RALPH_GITHUB_TOKEN estao vazios/ausentes. Clone real fica bloqueado ate configurar token GitHub com acesso de leitura ao repo inertial-eclipse.",
       "updatedAt": "2026-05-06T18:58:56.996Z"
+    },
+    {
+      "id": "S039",
+      "requestId": "R008",
+      "title": "Corrigir healthcheck do worker Docker",
+      "description": "Sobrescrever healthcheck do servico worker para nao usar endpoint HTTP do web container.",
+      "acceptanceCriteria": [
+        "docker-compose define healthcheck apropriado para worker.",
+        "Worker remoto deixa de ficar unhealthy por healthcheck HTTP incorreto apos redeploy.",
+        "Validacoes locais passam."
+      ],
+      "status": "in_progress",
+      "passes": false,
+      "notes": "Worker remoto esta vivo, mas unhealthy por healthcheck HTTP herdado do Dockerfile; ajustando compose.",
+      "updatedAt": "2026-05-06T19:02:08.511Z"
     }
   ]
 }
