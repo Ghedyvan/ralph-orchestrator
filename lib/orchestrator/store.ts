@@ -142,19 +142,17 @@ const initialState = (): OrchestratorState => ({
     },
     {
       provider: "codex",
-      label: "Codex",
-      requiresApiKey: true,
-      apiKeyEnv: "CODEX_API_KEY",
+      label: "Codex CLI",
+      requiresApiKey: false,
       executionMode: "local-cli",
-      enabled: Boolean(process.env.CODEX_API_KEY && process.env.CODEX_COMMAND),
+      enabled: Boolean(process.env.CODEX_COMMAND),
     },
     {
       provider: "opencode-go",
       label: "opencode go",
-      requiresApiKey: true,
-      apiKeyEnv: "OPENCODE_GO_API_KEY",
+      requiresApiKey: false,
       executionMode: "local-cli",
-      enabled: Boolean(process.env.OPENCODE_GO_API_KEY && process.env.OPENCODE_GO_COMMAND),
+      enabled: Boolean(process.env.OPENCODE_GO_COMMAND),
     },
     {
       provider: "mimo",
@@ -173,6 +171,22 @@ const initialState = (): OrchestratorState => ({
       enabled: Boolean(
         process.env.MINIMAX_API_KEY && process.env.MINIMAX_API_URL && process.env.MINIMAX_MODEL,
       ),
+    },
+    {
+      provider: "zai",
+      label: "Z.ai",
+      requiresApiKey: true,
+      apiKeyEnv: "ZAI_API_KEY",
+      executionMode: "remote-api",
+      enabled: Boolean(process.env.ZAI_API_KEY),
+    },
+    {
+      provider: "deepseek",
+      label: "DeepSeek",
+      requiresApiKey: true,
+      apiKeyEnv: "DEEPSEEK_API_KEY",
+      executionMode: "remote-api",
+      enabled: Boolean(process.env.DEEPSEEK_API_KEY),
     },
   ],
 });

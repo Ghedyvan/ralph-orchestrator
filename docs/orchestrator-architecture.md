@@ -51,10 +51,12 @@ Execucao real de comandos fica desativada por padrao. Para VPS, habilitar soment
 
 Providers implementados por configuracao:
 
-- `codex`: execucao local via `CODEX_COMMAND`.
+- `codex`: execucao local via `CODEX_COMMAND`, usando login do Codex CLI.
 - `opencode-go`: execucao local via `OPENCODE_GO_COMMAND`.
 - `mimo`: chamada HTTP compativel com chat completions via `MIMO_API_URL` e `MIMO_MODEL`.
 - `minimax`: chamada HTTP compativel com chat completions via `MINIMAX_API_URL` e `MINIMAX_MODEL`.
+- `zai`: chamada HTTP compativel com chat completions via `ZAI_API_KEY`.
+- `deepseek`: chamada HTTP compativel com chat completions via `DEEPSEEK_API_KEY`.
 - `manual`: dry-run/registro sem execucao.
 
 Chaves nunca entram em arquivo versionado. Usar apenas variaveis:
@@ -63,13 +65,18 @@ Chaves nunca entram em arquivo versionado. Usar apenas variaveis:
 MIMO_API_KEY
 MINIMAX_API_KEY
 OPENCODE_GO_API_KEY
-CODEX_API_KEY
 CODEX_COMMAND
 OPENCODE_GO_COMMAND
 MIMO_API_URL
 MIMO_MODEL
 MINIMAX_API_URL
 MINIMAX_MODEL
+ZAI_API_KEY
+ZAI_API_URL
+ZAI_MODEL
+DEEPSEEK_API_KEY
+DEEPSEEK_API_URL
+DEEPSEEK_MODEL
 ```
 
 ## Politica Segura Inicial

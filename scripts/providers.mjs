@@ -1,15 +1,14 @@
-import {execFile} from "node:child_process";
+import {spawn} from "node:child_process";
 import {access, writeFile} from "node:fs/promises";
 import path from "node:path";
-import {promisify} from "node:util";
-
-const execFileAsync = promisify(execFile);
 
 const PROVIDER_ENV = {
-  codex: "CODEX_API_KEY",
-  "opencode-go": "OPENCODE_GO_API_KEY",
+  codex: null,
+  "opencode-go": null,
   mimo: "MIMO_API_KEY",
   minimax: "MINIMAX_API_KEY",
+  zai: "ZAI_API_KEY",
+  deepseek: "DEEPSEEK_API_KEY",
 };
 
 const COMMAND_ENV = {
@@ -20,15 +19,27 @@ const COMMAND_ENV = {
 const HTTP_CONFIG = {
   mimo: {model: "MIMO_MODEL", url: "MIMO_API_URL"},
   minimax: {model: "MINIMAX_MODEL", url: "MINIMAX_API_URL"},
+  zai: {
+    defaultModel: "glm-4.5",
+    defaultUrl: "https://api.z.ai/api/paas/v4/chat/completions",
+    model: "ZAI_MODEL",
+    url: "ZAI_API_URL",
+  },
+  deepseek: {
+    defaultModel: "deepseek-chat",
+    defaultUrl: "https://api.deepseek.com/chat/completions",
+    model: "DEEPSEEK_MODEL",
+    url: "DEEPSEEK_API_URL",
+  },
 };
 
 export function providerReady(provider) {
   if (provider === "manual") return true;
+  if (COMMAND_ENV[provider]) return Boolean(process.env[COMMAND_ENV[provider]]);
   const envName = PROVIDER_ENV[provider];
   if (!envName || !process.env[envName]) return false;
-  if (COMMAND_ENV[provider]) return Boolean(process.env[COMMAND_ENV[provider]]);
   const http = HTTP_CONFIG[provider];
-  if (http) return Boolean(process.env[http.url] && process.env[http.model]);
+  if (http) return Boolean(process.env[http.url] || http.defaultUrl) && Boolean(process.env[http.model] || http.defaultModel);
   return false;
 }
 
@@ -50,7 +61,6 @@ export async function runProvider({provider, project, run, task, workspacePath})
     };
   }
 
-  const envName = PROVIDER_ENV[provider];
   if (!process.env.RALPH_PROVIDER_CALLS_ENABLED || process.env.RALPH_PROVIDER_CALLS_ENABLED !== "1") {
     return {
       ok: false,
@@ -61,21 +71,11 @@ export async function runProvider({provider, project, run, task, workspacePath})
     };
   }
 
-  if (!envName || !process.env[envName]) {
-    return {
-      ok: false,
-      blocked: true,
-      summary: `Provider ${provider} requer ${envName}.`,
-      changedFiles: [],
-      diffSummary: "Provider sem credencial.",
-    };
-  }
-
   if (provider === "codex" || provider === "opencode-go") {
     return runCliProvider({provider, project, run, task, workspacePath});
   }
 
-  if (provider === "mimo" || provider === "minimax") {
+  if (provider === "mimo" || provider === "minimax" || provider === "zai" || provider === "deepseek") {
     return runHttpProvider({provider, project, run, task, workspacePath});
   }
 
@@ -93,6 +93,39 @@ function parseCommand(command) {
     .split(" ")
     .map((part) => part.trim())
     .filter(Boolean);
+}
+
+function runCliCommand(bin, args, cwd, input) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(bin, args, {
+      cwd,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    const timer = setTimeout(() => {
+      child.kill("SIGTERM");
+      reject(new Error(`Provider timeout apos ${process.env.RALPH_PROVIDER_TIMEOUT_MS || 1000 * 60 * 20}ms.`));
+    }, Number(process.env.RALPH_PROVIDER_TIMEOUT_MS || 1000 * 60 * 20));
+
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      if (code === 0) resolve({stderr, stdout});
+      else reject(new Error(`${bin} saiu com codigo ${code}.\n${stderr || stdout}`));
+    });
+
+    child.stdin.end(input);
+  });
 }
 
 async function runCliProvider({provider, project, run, task, workspacePath}) {
@@ -122,17 +155,25 @@ async function runCliProvider({provider, project, run, task, workspacePath}) {
     ].join("\n"),
   );
 
+  const promptContent = [
+    `# ${task.title}`,
+    "",
+    `Project: ${project.name}`,
+    `Repo: ${project.repoUrl}`,
+    `Run: ${run.id}`,
+    `Workspace: ${workspacePath}`,
+    "",
+    task.prompt,
+  ].join("\n");
   const [bin, ...args] = parseCommand(command);
-  const finalArgs = args.map((arg) => arg.replaceAll("{prompt}", promptPath).replaceAll("{workspace}", workspacePath));
+  const finalArgs = args.map((arg) =>
+    arg.replaceAll("{prompt}", promptPath).replaceAll("{workspace}", workspacePath),
+  );
   const repoPath = path.join(workspacePath, "repo");
   const cwd = await access(repoPath)
     .then(() => repoPath)
     .catch(() => workspacePath);
-  const {stdout, stderr} = await execFileAsync(bin, finalArgs, {
-    cwd,
-    timeout: Number(process.env.RALPH_PROVIDER_TIMEOUT_MS || 1000 * 60 * 20),
-    maxBuffer: 1024 * 1024 * 10,
-  });
+  const {stdout, stderr} = await runCliCommand(bin, finalArgs, cwd, promptContent);
 
   return {
     ok: true,
@@ -144,8 +185,8 @@ async function runCliProvider({provider, project, run, task, workspacePath}) {
 
 async function runHttpProvider({provider, project, run, task, workspacePath}) {
   const config = HTTP_CONFIG[provider];
-  const url = process.env[config.url];
-  const model = process.env[config.model];
+  const url = process.env[config.url] || config.defaultUrl;
+  const model = process.env[config.model] || config.defaultModel;
   const apiKey = process.env[PROVIDER_ENV[provider]];
   if (!url || !model || !apiKey) {
     return {

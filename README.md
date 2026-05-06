@@ -10,7 +10,7 @@ O projeto nasceu como visualizador de `prd.json`, mas agora tem uma base de orqu
 - worker separado;
 - workspaces por task;
 - Git workspace com clone/branch/diff/commit/push/PR por aprovacao;
-- providers planejados para Codex, opencode go, Mimo e Minimax;
+- providers para Codex CLI, opencode go, Mimo, Minimax, Z.ai e DeepSeek;
 - execucao real bloqueada por padrao.
 
 ## Stack
@@ -89,14 +89,16 @@ Providers existem no modelo:
 - `opencode-go`
 - `mimo`
 - `minimax`
+- `zai`
+- `deepseek`
 
 Variaveis esperadas, sem valores no repositorio:
 
 ```text
-CODEX_API_KEY
-OPENCODE_GO_API_KEY
 MIMO_API_KEY
 MINIMAX_API_KEY
+ZAI_API_KEY
+DEEPSEEK_API_KEY
 RALPH_RUNNER_ENABLED
 RALPH_GIT_ENABLED
 RALPH_GIT_WRITE_ENABLED
@@ -120,11 +122,11 @@ RALPH_PROVIDER_CALLS_ENABLED=1
 Providers CLI:
 
 ```text
-CODEX_COMMAND=codex exec --full-auto --prompt-file {prompt}
+CODEX_COMMAND=codex exec --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox -
 OPENCODE_GO_COMMAND=opencode-go run --prompt {prompt}
 ```
 
-`{prompt}` vira arquivo `PROVIDER_PROMPT.md`. `{workspace}` vira caminho do workspace.
+Codex usa login local do terminal/plano Pro, nao `CODEX_API_KEY`. Quando o comando termina com `-`, o prompt e enviado por stdin. `{prompt}` vira arquivo `PROVIDER_PROMPT.md`. `{workspace}` vira caminho do workspace.
 
 Providers HTTP compativeis com chat completions:
 
@@ -133,6 +135,12 @@ MIMO_API_URL=https://provider.example/v1/chat/completions
 MIMO_MODEL=model-name
 MINIMAX_API_URL=https://provider.example/v1/chat/completions
 MINIMAX_MODEL=model-name
+ZAI_API_KEY=...
+ZAI_API_URL=https://api.z.ai/api/paas/v4/chat/completions
+ZAI_MODEL=glm-4.5
+DEEPSEEK_API_KEY=...
+DEEPSEEK_API_URL=https://api.deepseek.com/chat/completions
+DEEPSEEK_MODEL=deepseek-chat
 ```
 
 Chaves ficam somente em env vars.

@@ -1,4 +1,12 @@
-export const AGENT_PROVIDERS = ["manual", "codex", "opencode-go", "mimo", "minimax"] as const;
+export const AGENT_PROVIDERS = [
+  "manual",
+  "codex",
+  "opencode-go",
+  "mimo",
+  "minimax",
+  "zai",
+  "deepseek",
+] as const;
 export const PROJECT_STATUSES = ["active", "paused", "archived"] as const;
 export const TASK_STATUSES = [
   "queued",

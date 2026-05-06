@@ -1,3 +1,5 @@
+import type {AgentProvider} from "@/lib/orchestrator/types";
+
 import {createProject, readState} from "@/lib/orchestrator/store";
 import {isAuthorized, unauthorized} from "@/lib/orchestrator/auth";
 
@@ -16,7 +18,7 @@ export async function POST(request: Request) {
     const body = (await request.json()) as {
       autonomyLevel?: "low" | "medium" | "high";
       defaultBranch?: string;
-      defaultProvider?: "manual" | "codex" | "opencode-go" | "mimo" | "minimax";
+      defaultProvider?: AgentProvider;
       localPath?: string;
       name?: string;
       repoUrl?: string;

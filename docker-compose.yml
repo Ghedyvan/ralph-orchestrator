@@ -37,10 +37,20 @@ services:
       RALPH_ALLOWED_COMMANDS: ${RALPH_ALLOWED_COMMANDS:-yarn lint,yarn typecheck,yarn build}
       RALPH_FORBIDDEN_PATHS: ${RALPH_FORBIDDEN_PATHS:-.env,.env.local,.ssh,id_rsa,id_ed25519}
       RALPH_PROVIDER_CALLS_ENABLED: ${RALPH_PROVIDER_CALLS_ENABLED:-0}
-      CODEX_API_KEY: ${CODEX_API_KEY:-}
-      OPENCODE_GO_API_KEY: ${OPENCODE_GO_API_KEY:-}
+      CODEX_COMMAND: ${CODEX_COMMAND:-codex exec --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox -}
+      OPENCODE_GO_COMMAND: ${OPENCODE_GO_COMMAND:-}
       MIMO_API_KEY: ${MIMO_API_KEY:-}
+      MIMO_API_URL: ${MIMO_API_URL:-}
+      MIMO_MODEL: ${MIMO_MODEL:-}
       MINIMAX_API_KEY: ${MINIMAX_API_KEY:-}
+      MINIMAX_API_URL: ${MINIMAX_API_URL:-}
+      MINIMAX_MODEL: ${MINIMAX_MODEL:-}
+      ZAI_API_KEY: ${ZAI_API_KEY:-}
+      ZAI_API_URL: ${ZAI_API_URL:-}
+      ZAI_MODEL: ${ZAI_MODEL:-}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_API_URL: ${DEEPSEEK_API_URL:-}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-}
     volumes:
       - ralph-data:/app/data
     restart: unless-stopped

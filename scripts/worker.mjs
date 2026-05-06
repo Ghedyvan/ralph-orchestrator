@@ -41,10 +41,12 @@ function initialState() {
     logs: [],
     providers: [
       {provider: "manual", label: "Manual / Dry Run", requiresApiKey: false, executionMode: "dry-run", enabled: true},
-      {provider: "codex", label: "Codex", requiresApiKey: true, apiKeyEnv: "CODEX_API_KEY", executionMode: "local-cli", enabled: false},
-      {provider: "opencode-go", label: "opencode go", requiresApiKey: true, apiKeyEnv: "OPENCODE_GO_API_KEY", executionMode: "local-cli", enabled: false},
+      {provider: "codex", label: "Codex CLI", requiresApiKey: false, executionMode: "local-cli", enabled: Boolean(process.env.CODEX_COMMAND)},
+      {provider: "opencode-go", label: "opencode go", requiresApiKey: false, executionMode: "local-cli", enabled: Boolean(process.env.OPENCODE_GO_COMMAND)},
       {provider: "mimo", label: "Mimo", requiresApiKey: true, apiKeyEnv: "MIMO_API_KEY", executionMode: "remote-api", enabled: false},
       {provider: "minimax", label: "Minimax", requiresApiKey: true, apiKeyEnv: "MINIMAX_API_KEY", executionMode: "remote-api", enabled: false},
+      {provider: "zai", label: "Z.ai", requiresApiKey: true, apiKeyEnv: "ZAI_API_KEY", executionMode: "remote-api", enabled: Boolean(process.env.ZAI_API_KEY)},
+      {provider: "deepseek", label: "DeepSeek", requiresApiKey: true, apiKeyEnv: "DEEPSEEK_API_KEY", executionMode: "remote-api", enabled: Boolean(process.env.DEEPSEEK_API_KEY)},
     ],
   };
 }
@@ -53,7 +55,7 @@ async function readState() {
   await mkdir(DATA_DIR, {recursive: true});
   try {
     const raw = await readFile(STATE_PATH, "utf8");
-    return {...initialState(), ...JSON.parse(raw)};
+    return {...initialState(), ...JSON.parse(raw), providers: initialState().providers};
   } catch {
     const state = initialState();
     await writeState(state);
