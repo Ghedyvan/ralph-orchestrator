@@ -169,3 +169,10 @@
 - S025 concluida: README, docs/security.md, Dockerfile, docker-compose.yml e checklist atualizados para fluxo Git write/PR.
 - Validacoes: yarn lint, yarn typecheck, yarn worker:once e yarn build passaram.
 - Git local: nao ha repositorio Git neste diretorio, entao nenhum commit foi feito.
+
+2026-05-06 - R005 Publicacao GitHub
+- S026 concluida: .env.example, /api/health, publish helper e Docker healthcheck adicionados.
+- S027 concluida: providers codex/opencode-go por comando configurado; mimo/minimax por HTTP chat-completions configuravel.
+- S028 concluida: docs atualizadas e smoke passou com lint/typecheck/worker/build.
+- S029 parcialmente concluida: Git local inicializado e commit f02f7dd criado.
+- Bloqueio: publicacao em novo repo GitHub nao pode ser feita neste ambiente porque gh nao esta instalado e nao ha GITHUB_TOKEN/GH_TOKEN disponivel. yarn publish:github retornou: "GITHUB_TOKEN ou GH_TOKEN obrigatorio.".

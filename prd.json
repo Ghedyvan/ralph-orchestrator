@@ -2,7 +2,7 @@
   "project": "ralph-kanban",
   "version": "1.0.0",
   "createdAt": "2026-05-06T03:27:02.908Z",
-  "updatedAt": "2026-05-06T04:36:26.843Z",
+  "updatedAt": "2026-05-06T04:37:06.933Z",
   "activeRequest": {
     "id": "R005",
     "text": "Fazer projeto ficar completamente funcional e publicar commit em novo repositorio GitHub.",
@@ -37,7 +37,7 @@
       "id": "R005",
       "text": "Fazer projeto ficar completamente funcional e publicar commit em novo repositorio GitHub.",
       "createdAt": "2026-05-06T04:33:48.512Z",
-      "status": "in_progress"
+      "status": "blocked"
     }
   ],
   "stories": [
@@ -471,10 +471,10 @@
         "Arquivos sensiveis continuam ignorados.",
         "Publicacao GitHub feita ou bloqueio por credencial ausente registrado."
       ],
-      "status": "in_progress",
+      "status": "blocked",
       "passes": false,
-      "notes": "Story iniciada: Git local, commit e publicacao GitHub.",
-      "updatedAt": "2026-05-06T04:36:26.843Z"
+      "notes": "Story iniciada: Git local, commit e publicacao GitHub.\nGit local inicializado e commit criado (f02f7dd). Publicacao GitHub bloqueada: gh nao instalado e GITHUB_TOKEN/GH_TOKEN ausentes; yarn publish:github falhou com 'GITHUB_TOKEN ou GH_TOKEN obrigatorio.'. Script de publicacao esta pronto para criar/push quando token existir.",
+      "updatedAt": "2026-05-06T04:37:06.887Z"
     }
   ]
 }
