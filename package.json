@@ -14,26 +14,26 @@
     "publish:github": "node scripts/publish-github.mjs"
   },
   "dependencies": {
-    "@gravity-ui/icons": "latest",
-    "@heroui-pro/react": "latest",
-    "@heroui/react": "latest",
-    "@heroui/styles": "latest",
+    "@gravity-ui/icons": "2.18.0",
+    "@heroui-pro/react": "1.0.0-beta.2",
+    "@heroui/react": "3.0.3",
+    "@heroui/styles": "3.0.3",
     "@supabase/supabase-js": "^2.105.3",
     "motion": "^12.38.0",
-    "next": "latest",
-    "react": "latest",
-    "react-dom": "latest",
+    "next": "16.2.4",
+    "react": "19.2.5",
+    "react-dom": "19.2.5",
     "recharts": "^3.8.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",
-    "@tailwindcss/postcss": "latest",
-    "@types/node": "latest",
-    "@types/react": "latest",
-    "@types/react-dom": "latest",
+    "@tailwindcss/postcss": "4.2.4",
+    "@types/node": "25.6.0",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
     "eslint": "^9",
-    "eslint-config-next": "latest",
-    "tailwindcss": "latest",
-    "typescript": "latest"
+    "eslint-config-next": "16.2.4",
+    "tailwindcss": "4.2.4",
+    "typescript": "6.0.3"
   }
 }
