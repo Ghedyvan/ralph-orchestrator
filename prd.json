@@ -2,11 +2,12 @@
   "project": "ralph-kanban",
   "version": "1.0.0",
   "createdAt": "2026-05-06T03:27:02.908Z",
-  "updatedAt": "2026-05-06T07:12:00.000Z",
+  "updatedAt": "2026-05-06T18:40:33.024Z",
   "activeRequest": {
-    "id": "R006",
-    "text": "Separar funcionalidades em paginas com sidebar; Kanban em pagina propria; card abre modal de detalhes e permite retry em erro.",
-    "createdAt": "2026-05-06T07:12:00.000Z"
+    "id": "R007",
+    "text": "Este projeto está hospedado na vps que eu acesso por ssh no docker worker-ldfqzk0eotp62e6oby4gbypw-075036591444, preciso que você tente corrigir esse erro que deu em um projeto: Falha ao preparar Git workspace. Command failed: git clone --depth 1 https://github.com/Ghedyvan/inertial-eclipse.git /app/data/workspaces/bd39e4eb-7ff3-4a74-8bfb-1e19a3e397af/4780f66c-bd01-4b56-9bbc-607584294803/repo Cloning into '/app/data/workspaces/bd39e4eb-7ff3-4a74-8bfb-1e19a3e397af/4780f66c-bd01-4b56-9bbc-607584294803/repo'... fatal: could not read Username for 'https://github.com': No such device or address",
+    "createdAt": "2026-05-06T18:37:11.671Z",
+    "maxStories": null
   },
   "requests": [
     {
@@ -44,6 +45,12 @@
       "text": "Separar funcionalidades em paginas com sidebar; Kanban em pagina propria; card abre modal de detalhes e permite retry em erro.",
       "createdAt": "2026-05-06T07:12:00.000Z",
       "status": "done"
+    },
+    {
+      "id": "R007",
+      "text": "Este projeto está hospedado na vps que eu acesso por ssh no docker worker-ldfqzk0eotp62e6oby4gbypw-075036591444, preciso que você tente corrigir esse erro que deu em um projeto: Falha ao preparar Git workspace. Command failed: git clone --depth 1 https://github.com/Ghedyvan/inertial-eclipse.git /app/data/workspaces/bd39e4eb-7ff3-4a74-8bfb-1e19a3e397af/4780f66c-bd01-4b56-9bbc-607584294803/repo Cloning into '/app/data/workspaces/bd39e4eb-7ff3-4a74-8bfb-1e19a3e397af/4780f66c-bd01-4b56-9bbc-607584294803/repo'... fatal: could not read Username for 'https://github.com': No such device or address",
+      "createdAt": "2026-05-06T18:37:11.671Z",
+      "status": "blocked"
     }
   ],
   "stories": [
@@ -526,6 +533,51 @@
       "passes": true,
       "notes": "Modal HeroUI adicionado; cards Kanban/fila abrem detalhes; retry via API limpa branchName/workspacePath e volta status para queued.",
       "updatedAt": "2026-05-06T07:12:00.000Z"
+    },
+    {
+      "id": "S033",
+      "requestId": "R007",
+      "title": "Diagnosticar falha de clone Git no worker remoto",
+      "description": "Confirmar causa provavel do erro fatal: could not read Username for https://github.com e checar acesso SSH/container sem expor secrets.",
+      "acceptanceCriteria": [
+        "A causa provavel do erro fica documentada.",
+        "Nenhum token, secret ou .env e lido ou impresso.",
+        "Limites do acesso remoto ficam registrados em progress.txt."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Diagnostico iniciado: clone HTTPS GitHub falha quando repo privado exige credencial e processo nao interativo nao tem prompt.\nDiagnostico concluido: git ls-remote e clone local de https://github.com/Ghedyvan/inertial-eclipse.git passaram sem token; falha remota indica ambiente VPS/worker sem acesso Git interativo, token ausente/invalido ou configuracao remota diferente. SSH pelo nome do container nao resolve neste ambiente local.",
+      "updatedAt": "2026-05-06T18:38:31.411Z"
+    },
+    {
+      "id": "S034",
+      "requestId": "R007",
+      "title": "Fortalecer clone Git autenticado no worker",
+      "description": "Ajustar worker e compose para clonar repos GitHub privados via token sem expor credencial em logs, com mensagens de erro acionaveis.",
+      "acceptanceCriteria": [
+        "Worker usa autenticacao GitHub quando GITHUB_TOKEN/GH_TOKEN existir.",
+        "docker-compose passa GH_TOKEN/GITHUB_TOKEN para web e worker quando configurados.",
+        "Erros de clone privado sem token indicam acao necessaria sem vazar credencial."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Implementando robustez no clone Git do worker e envs de deploy sem tocar secrets.\nWorker agora usa RALPH_GITHUB_TOKEN/GITHUB_TOKEN/GH_TOKEN, desativa prompt Git interativo, sanitiza headers, diferencia falha de autenticacao e orienta token de leitura. docker-compose passa tokens para web/worker. README documenta erro e acao. Validacoes: npm run lint, npm run typecheck e npm run worker:once passaram.",
+      "updatedAt": "2026-05-06T18:39:41.348Z"
+    },
+    {
+      "id": "S035",
+      "requestId": "R007",
+      "title": "Validar correção Git e documentar deploy VPS",
+      "description": "Rodar validações locais disponíveis e registrar como aplicar correção na VPS/Coolify sem tocar secrets.",
+      "acceptanceCriteria": [
+        "lint/typecheck/build ou validação equivalente passam.",
+        "progress.txt registra validações e pendência de rede/SSH se existir.",
+        "Solicitação original fica coberta ou bloqueio real fica claro."
+      ],
+      "status": "blocked",
+      "passes": false,
+      "notes": "Validacao final e registro de deploy VPS iniciados.\nValidacoes locais passaram: npm run lint, npm run typecheck, npm run worker:once e npm run build. Aplicacao remota bloqueada: hostname SSH real nao disponivel; nome informado e container Docker e nao resolve localmente; alias SSH local e placeholder NomeDaSuaVPS. Correção local pronta para deploy.",
+      "updatedAt": "2026-05-06T18:40:33.024Z"
     }
   ]
 }

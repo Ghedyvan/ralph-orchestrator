@@ -17,6 +17,9 @@ services:
       RALPH_GIT_PUSH_ENABLED: ${RALPH_GIT_PUSH_ENABLED:-0}
       RALPH_GIT_PR_ENABLED: ${RALPH_GIT_PR_ENABLED:-0}
       RALPH_FORBIDDEN_PATHS: ${RALPH_FORBIDDEN_PATHS:-.env,.env.local,.ssh,id_rsa,id_ed25519}
+      RALPH_GITHUB_TOKEN: ${RALPH_GITHUB_TOKEN:-}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GH_TOKEN: ${GH_TOKEN:-}
     volumes:
       - ralph-data:/app/data
     restart: unless-stopped
@@ -57,6 +60,7 @@ services:
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       DEEPSEEK_API_URL: ${DEEPSEEK_API_URL:-}
       DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-}
+      RALPH_GITHUB_TOKEN: ${RALPH_GITHUB_TOKEN:-}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       GH_TOKEN: ${GH_TOKEN:-}
     volumes:

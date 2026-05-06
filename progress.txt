@@ -187,3 +187,10 @@
 - S031 concluida: rotas /kanban, /projects, /tasks e /runs criadas; home virou visao geral.
 - S032 concluida: cards do Kanban/fila abrem modal HeroUI com detalhes; retry reenfileira task e limpa branch/workspace antigo.
 - Validacoes: yarn lint, yarn typecheck, yarn worker:once e yarn build passaram.
+
+2026-05-06 - R007 Correcao clone Git na VPS
+- S033 concluida: diagnostico indicou que `git ls-remote` e `git clone --depth 1 https://github.com/Ghedyvan/inertial-eclipse.git` passam localmente sem token; erro remoto aponta para ambiente do worker sem auth Git interativa, token ausente/invalido ou configuracao remota divergente. SSH para `worker-ldfqzk0eotp62e6oby4gbypw-075036591444` nao resolve como hostname local.
+- S034 concluida: worker agora aceita `RALPH_GITHUB_TOKEN`, `GITHUB_TOKEN` ou `GH_TOKEN`, desativa prompt Git interativo, sanitiza token/header em erros e retorna mensagem acionavel quando clone falha por autenticacao/acesso. `docker-compose.yml` passa tokens para web/worker e README documenta `could not read Username`.
+- S035 bloqueada para aplicacao remota: alias SSH local existente e apenas `NomeDaSuaVPS`; contexto Docker remoto nao esta configurado e OrbStack local nao esta ativo. Nao houve acesso seguro ao container/VPS para redeploy.
+- Validacoes: `npm run lint`, `npm run typecheck`, `npm run worker:once` e `npm run build` passaram.
+- Proximo passo: configurar no servico worker da VPS/Coolify `RALPH_GITHUB_TOKEN` com permissao de leitura do repo e redeploy, ou informar hostname/alias SSH real para aplicar diretamente.

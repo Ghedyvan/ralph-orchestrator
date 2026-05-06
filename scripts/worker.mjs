@@ -28,7 +28,7 @@ const ALLOWED_COMMANDS = (process.env.RALPH_ALLOWED_COMMANDS || "yarn lint,yarn 
   .split(",")
   .map((item) => item.trim())
   .filter(Boolean);
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || "";
+const GITHUB_TOKEN = process.env.RALPH_GITHUB_TOKEN || process.env.GITHUB_TOKEN || process.env.GH_TOKEN || "";
 const execFileAsync = promisify(execFile);
 
 const now = () => new Date().toISOString();
@@ -98,6 +98,11 @@ async function writeWorkspaceFiles(workspacePath, project, task, run) {
 async function runGit(args, cwd) {
   const {stdout, stderr} = await execFileAsync("git", args, {
     cwd,
+    env: {
+      ...process.env,
+      GCM_INTERACTIVE: "never",
+      GIT_TERMINAL_PROMPT: "0",
+    },
     timeout: 1000 * 60 * 5,
     maxBuffer: 1024 * 1024 * 10,
   });
@@ -109,7 +114,36 @@ function sanitizeGitError(error) {
   const sanitized = GITHUB_TOKEN ? message.replaceAll(GITHUB_TOKEN, "[redacted]") : message;
   return sanitized
     .replace(/x-access-token:[^@\\s]+@/g, "x-access-token:[redacted]@")
+    .replace(/Authorization: Bearer\s+[^\s]+/gi, "Authorization: Bearer [redacted]")
     .slice(0, 2000);
+}
+
+function gitErrorText(error) {
+  const parts = [
+    error?.message,
+    error?.stderr,
+    error?.stdout,
+  ].filter(Boolean);
+  return parts.join("\n");
+}
+
+function isGitAuthFailure(error) {
+  const text = gitErrorText(error).toLowerCase();
+  return [
+    "could not read username",
+    "authentication failed",
+    "repository not found",
+    "terminal prompts disabled",
+    "support for password authentication was removed",
+  ].some((item) => text.includes(item));
+}
+
+function gitAuthHint(repoUrl) {
+  if (!repoUrl.startsWith("https://github.com/")) return "";
+  if (!GITHUB_TOKEN) {
+    return " Configure RALPH_GITHUB_TOKEN, GITHUB_TOKEN ou GH_TOKEN no worker com acesso de leitura ao repositorio.";
+  }
+  return " Verifique se o token configurado no worker tem acesso de leitura ao repositorio.";
 }
 
 function cloneArgs(repoUrl, repoPath, branchName) {
@@ -132,8 +166,18 @@ async function prepareGitWorkspace(state, run, project, task, workspacePath, bra
   try {
     await runGit(cloneArgs(project.repoUrl, repoPath, project.defaultBranch), ROOT);
   } catch (error) {
+    if (isGitAuthFailure(error)) {
+      throw new Error(`Clone Git falhou por autenticacao/acesso.${gitAuthHint(project.repoUrl)} ${sanitizeGitError(error)}`);
+    }
     addLog(state, run.id, "warn", `Clone com branch ${project.defaultBranch} falhou; tentando clone default. ${sanitizeGitError(error)}`);
-    await runGit(cloneArgs(project.repoUrl, repoPath), ROOT);
+    try {
+      await runGit(cloneArgs(project.repoUrl, repoPath), ROOT);
+    } catch (fallbackError) {
+      if (isGitAuthFailure(fallbackError)) {
+        throw new Error(`Clone Git falhou por autenticacao/acesso.${gitAuthHint(project.repoUrl)} ${sanitizeGitError(fallbackError)}`);
+      }
+      throw fallbackError;
+    }
     await runGit(["checkout", project.defaultBranch], repoPath);
   }
   await runGit(["checkout", "-B", branchName], repoPath);

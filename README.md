@@ -150,6 +150,12 @@ Chaves ficam somente em env vars.
 Repos publicos clonam sem token. Para repos privados no GitHub, configure no worker:
 
 ```text
+RALPH_GITHUB_TOKEN=github_pat_...
+```
+
+Tambem sao aceitos:
+
+```text
 GITHUB_TOKEN=github_pat_...
 ```
 
@@ -160,6 +166,8 @@ GH_TOKEN=github_pat_...
 ```
 
 Permissao minima: acesso de leitura ao repo para clone. Para push/PR, token precisa permissao de escrita no repo.
+
+Se o worker registrar `could not read Username for 'https://github.com'`, o processo Git tentou autenticar sem prompt interativo. Configure um dos tokens acima no servico `worker` da VPS/Coolify e redeploy.
 
 ## Git Write e PR
 
