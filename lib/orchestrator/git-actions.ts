@@ -57,19 +57,40 @@ function sanitizeGitOutput(output: string) {
     .replace(/Authorization: Basic\s+[A-Za-z0-9+/=]+/gi, "Authorization: Basic [redacted]");
 }
 
-async function runGh(args: string[], cwd: string) {
-  const {stdout, stderr} = await execFileAsync("gh", args, {
-    cwd,
-    timeout: 1000 * 60 * 5,
-    maxBuffer: 1024 * 1024 * 10,
-  });
-  return `${stdout}${stderr}`.trim();
-}
-
 function assertFlag(name: string) {
   if (process.env[name] !== "1") {
     throw new Error(`${name}=1 obrigatorio para esta acao.`);
   }
+}
+
+function parseGitHubRemote(remoteUrl: string) {
+  const httpsMatch = remoteUrl.match(/^https:\/\/github\.com\/([^/]+)\/(.+?)(?:\.git)?$/);
+  if (httpsMatch) return {owner: httpsMatch[1], repo: httpsMatch[2]};
+
+  const sshMatch = remoteUrl.match(/^git@github\.com:([^/]+)\/(.+?)(?:\.git)?$/);
+  if (sshMatch) return {owner: sshMatch[1], repo: sshMatch[2]};
+
+  throw new Error(`Remote GitHub nao reconhecido: ${remoteUrl}`);
+}
+
+async function githubJson<T>(url: string, init?: RequestInit): Promise<T> {
+  if (!GITHUB_TOKEN) throw new Error("RALPH_GITHUB_TOKEN, GITHUB_TOKEN ou GH_TOKEN obrigatorio para criar PR.");
+
+  const response = await fetch(url, {
+    ...init,
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${GITHUB_TOKEN}`,
+      "Content-Type": "application/json",
+      "User-Agent": "ralph-orchestrator",
+      ...init?.headers,
+    },
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`GitHub API ${response.status}: ${sanitizeGitOutput(text).slice(0, 1200)}`);
+  }
+  return JSON.parse(text) as T;
 }
 
 async function repoPathFromRun(run: Run) {
@@ -153,6 +174,8 @@ export async function createRunPullRequest(run: Run, task: Task, baseBranch: str
   const branch = task.branchName || (await runGit(["branch", "--show-current"], repoPath));
   if (!branch) throw new Error("Branch nao encontrada.");
   await clearGithubAuthHeader(repoPath);
+  const remoteUrl = await runGit(["remote", "get-url", "origin"], repoPath);
+  const {owner, repo} = parseGitHubRemote(remoteUrl);
 
   const body = [
     `Task: ${task.id}`,
@@ -160,9 +183,29 @@ export async function createRunPullRequest(run: Run, task: Task, baseBranch: str
     "",
     "Criado pelo Ralph Orchestrator apos review humano.",
   ].join("\n");
-  const prUrl = await runGh(
-    ["pr", "create", "--base", baseBranch, "--head", branch, "--title", task.title, "--body", body],
-    repoPath,
-  );
+
+  type PullRequestResponse = {html_url: string};
+  let prUrl: string;
+  try {
+    const pr = await githubJson<PullRequestResponse>(`https://api.github.com/repos/${owner}/${repo}/pulls`, {
+      body: JSON.stringify({
+        base: baseBranch,
+        body,
+        head: branch,
+        title: task.title,
+      }),
+      method: "POST",
+    });
+    prUrl = pr.html_url;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.includes("A pull request already exists")) throw error;
+    const existing = await githubJson<PullRequestResponse[]>(
+      `https://api.github.com/repos/${owner}/${repo}/pulls?head=${owner}:${encodeURIComponent(branch)}&state=open`,
+    );
+    if (!existing[0]?.html_url) throw error;
+    prUrl = existing[0].html_url;
+  }
+
   return {output: prUrl, prUrl, remoteBranch: branch};
 }
