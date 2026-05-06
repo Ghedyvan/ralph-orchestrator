@@ -359,7 +359,7 @@ function TaskDetailModal({
       }}
       variant="blur"
     >
-      <Modal.Container placement="center" scroll="inside" size="lg">
+      <Modal.Container placement="center" scroll="outside" size="cover">
         <Modal.Dialog>
           <Modal.CloseTrigger />
           <Modal.Header>
