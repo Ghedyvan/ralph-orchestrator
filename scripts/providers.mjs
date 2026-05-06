@@ -128,6 +128,16 @@ function runCliCommand(bin, args, cwd, input) {
   });
 }
 
+function commandExists(bin) {
+  return new Promise((resolve) => {
+    const child = spawn("sh", ["-lc", `command -v "$1" >/dev/null 2>&1`, "sh", bin], {
+      stdio: "ignore",
+    });
+    child.on("error", () => resolve(false));
+    child.on("close", (code) => resolve(code === 0));
+  });
+}
+
 async function runCliProvider({provider, project, run, task, workspacePath}) {
   const command = process.env[COMMAND_ENV[provider]];
   if (!command) {
@@ -166,6 +176,15 @@ async function runCliProvider({provider, project, run, task, workspacePath}) {
     task.prompt,
   ].join("\n");
   const [bin, ...args] = parseCommand(command);
+  if (!(await commandExists(bin))) {
+    return {
+      ok: false,
+      blocked: true,
+      summary: `Provider ${provider} indisponivel: comando ${bin} nao encontrado no container.`,
+      changedFiles: [],
+      diffSummary: `Instale ${bin} na imagem ou configure ${COMMAND_ENV[provider]} para um comando disponivel.`,
+    };
+  }
   const finalArgs = args.map((arg) =>
     arg.replaceAll("{prompt}", promptPath).replaceAll("{workspace}", workspacePath),
   );

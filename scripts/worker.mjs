@@ -310,13 +310,25 @@ async function processOne() {
     return true;
   }
 
-  const providerResult = await runProvider({
-    provider: selectedProvider,
-    project,
-    run: freshRun,
-    task: freshTask,
-    workspacePath,
-  });
+  let providerResult;
+  try {
+    providerResult = await runProvider({
+      provider: selectedProvider,
+      project,
+      run: freshRun,
+      task: freshTask,
+      workspacePath,
+    });
+  } catch (error) {
+    freshTask.status = "blocked";
+    freshTask.updatedAt = now();
+    freshRun.status = "failed";
+    freshRun.finishedAt = now();
+    freshRun.summary = `Provider ${selectedProvider} falhou. ${sanitizeGitError(error)}`;
+    addLog(fresh, run.id, "error", freshRun.summary);
+    await writeState(fresh);
+    return true;
+  }
 
   if (!providerResult.ok && providerResult.blocked) {
     freshTask.status = "blocked";
