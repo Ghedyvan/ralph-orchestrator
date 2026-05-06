@@ -8,6 +8,7 @@ import {promisify} from "node:util";
 const execFileAsync = promisify(execFile);
 
 const WORKSPACES_DIR = path.join(process.cwd(), "data", "workspaces");
+const GITHUB_TOKEN = process.env.RALPH_GITHUB_TOKEN || process.env.GITHUB_TOKEN || process.env.GH_TOKEN || "";
 const FORBIDDEN_PATHS = (process.env.RALPH_FORBIDDEN_PATHS || ".env,.env.local,.ssh,id_rsa,id_ed25519")
   .split(",")
   .map((item) => item.trim())
@@ -22,12 +23,34 @@ type GitActionResult = {
 };
 
 async function runGit(args: string[], cwd: string) {
-  const {stdout, stderr} = await execFileAsync("git", args, {
-    cwd,
-    timeout: 1000 * 60 * 5,
-    maxBuffer: 1024 * 1024 * 10,
-  });
-  return `${stdout}${stderr}`.trim();
+  try {
+    const {stdout, stderr} = await execFileAsync("git", args, {
+      cwd,
+      env: {
+        ...process.env,
+        GCM_INTERACTIVE: "never",
+        GIT_TERMINAL_PROMPT: "0",
+      },
+      timeout: 1000 * 60 * 5,
+      maxBuffer: 1024 * 1024 * 10,
+    });
+    return `${stdout}${stderr}`.trim();
+  } catch (error) {
+    const message = error instanceof Error ? sanitizeGitOutput(error.message) : sanitizeGitOutput(String(error));
+    throw new Error(message);
+  }
+}
+
+function githubAuthArgs() {
+  if (!GITHUB_TOKEN) return [];
+  const basicToken = Buffer.from(`x-access-token:${GITHUB_TOKEN}`).toString("base64");
+  return ["-c", `http.https://github.com/.extraheader=Authorization: Basic ${basicToken}`];
+}
+
+function sanitizeGitOutput(output: string) {
+  return output
+    .replaceAll(GITHUB_TOKEN, "[redacted]")
+    .replace(/Authorization: Basic\s+[A-Za-z0-9+/=]+/gi, "Authorization: Basic [redacted]");
 }
 
 async function runGh(args: string[], cwd: string) {
@@ -89,7 +112,15 @@ export async function commitRunChanges(run: Run, task: Task, message?: string): 
 
   await runGit(["add", "-A"], repoPath);
   const commitMessage = (message?.trim() || `ralph: ${task.title}`).slice(0, 180);
-  await runGit(["commit", "-m", commitMessage], repoPath);
+  await runGit([
+    "-c",
+    "user.name=Ralph Orchestrator",
+    "-c",
+    "user.email=ralph-orchestrator@example.invalid",
+    "commit",
+    "-m",
+    commitMessage,
+  ], repoPath);
   const commitSha = await runGit(["rev-parse", "HEAD"], repoPath);
   const nextStatus = await runGit(["status", "--short"], repoPath);
   return {
@@ -105,8 +136,8 @@ export async function pushRunBranch(run: Run, task: Task): Promise<GitActionResu
   const repoPath = await repoPathFromRun(run);
   const branch = task.branchName || (await runGit(["branch", "--show-current"], repoPath));
   if (!branch) throw new Error("Branch nao encontrada.");
-  const output = await runGit(["push", "-u", "origin", branch], repoPath);
-  return {output: output || `Branch enviada: ${branch}`, remoteBranch: branch};
+  const output = await runGit([...githubAuthArgs(), "push", "-u", "origin", branch], repoPath);
+  return {output: sanitizeGitOutput(output || `Branch enviada: ${branch}`), remoteBranch: branch};
 }
 
 export async function createRunPullRequest(run: Run, task: Task, baseBranch: string): Promise<GitActionResult> {

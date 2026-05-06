@@ -337,12 +337,16 @@ function ProjectsList({snapshot}: {snapshot: DashboardSnapshot}) {
 }
 
 function TaskDetailModal({
+  gitAction,
+  gitState,
   onAction,
   onClose,
   projectName,
   runs,
   task,
 }: {
+  gitAction: (runId: string, action: "status" | "commit" | "push" | "pr") => void;
+  gitState: FormState;
   onAction: (taskId: string, action: "cancel" | "retry" | "complete-review") => void;
   onClose: () => void;
   projectName: string;
@@ -350,6 +354,7 @@ function TaskDetailModal({
   task: Task | null;
 }) {
   const taskRuns = task ? runs.filter((run) => run.taskId === task.id) : [];
+  const latestRun = taskRuns.at(-1);
 
   return (
     <Modal.Backdrop
@@ -359,7 +364,7 @@ function TaskDetailModal({
       }}
       variant="blur"
     >
-      <Modal.Container placement="center" scroll="outside" size="cover">
+      <Modal.Container placement="center" scroll="inside" size="cover">
         <Modal.Dialog>
           <Modal.CloseTrigger />
           <Modal.Header>
@@ -378,7 +383,7 @@ function TaskDetailModal({
           </Modal.Header>
           <Modal.Body>
             {task ? (
-              <div className="grid gap-4">
+              <div className="grid max-h-[calc(100dvh-220px)] gap-4 overflow-y-auto pr-2">
               <section>
                 <p className="text-sm font-semibold">Prompt</p>
                 <pre className="mt-2 max-h-56 overflow-auto rounded-2xl bg-surface-secondary p-4 whitespace-pre-wrap text-sm leading-6 text-muted">
@@ -416,6 +421,14 @@ function TaskDetailModal({
                         <StatusChip status={run.status} />
                       </div>
                       {run.summary ? <p className="mt-2 text-xs leading-5 text-muted">{run.summary}</p> : null}
+                      {run.gitStatus ? (
+                        <pre className="mt-2 max-h-28 overflow-auto rounded-xl bg-background p-3 text-xs text-muted">
+                          {run.gitStatus}
+                        </pre>
+                      ) : null}
+                      {run.commitSha ? <p className="mt-2 break-all text-xs text-muted">Commit: {run.commitSha}</p> : null}
+                      {run.remoteBranch ? <p className="mt-1 break-all text-xs text-muted">Remote: {run.remoteBranch}</p> : null}
+                      {run.prUrl ? <a className="mt-1 block break-all text-xs text-accent no-underline" href={run.prUrl}>{run.prUrl}</a> : null}
                     </div>
                   ))}
                   {taskRuns.length === 0 ? (
@@ -427,6 +440,30 @@ function TaskDetailModal({
             ) : null}
           </Modal.Body>
           <Modal.Footer>
+            <div className="flex w-full flex-col gap-3">
+              {gitState.error ? <p className="rounded-2xl bg-danger/10 p-3 text-sm text-danger">{gitState.error}</p> : null}
+              {gitState.ok ? <p className="rounded-2xl bg-success/10 p-3 text-sm text-success">{gitState.ok}</p> : null}
+              <div className="flex flex-wrap justify-end gap-2">
+                {latestRun ? (
+                  <>
+                    <Button size="sm" variant="outline" onPress={() => gitAction(latestRun.id, "status")}>
+                      <Gear />
+                      Git status
+                    </Button>
+                    <Button size="sm" variant="outline" onPress={() => gitAction(latestRun.id, "commit")}>
+                      <CircleCheck />
+                      Commit
+                    </Button>
+                    <Button size="sm" variant="outline" onPress={() => gitAction(latestRun.id, "push")}>
+                      <CirclePlay />
+                      Push
+                    </Button>
+                    <Button size="sm" variant="outline" onPress={() => gitAction(latestRun.id, "pr")}>
+                      <CirclePlus />
+                      PR
+                    </Button>
+                  </>
+                ) : null}
             {task && (task.status === "failed" || task.status === "blocked" || task.status === "cancelled") ? (
               <Button onPress={() => onAction(task.id, "retry")}>
                 <ArrowRotateLeft />
@@ -445,6 +482,8 @@ function TaskDetailModal({
                 Cancelar
               </Button>
             ) : null}
+              </div>
+            </div>
           </Modal.Footer>
         </Modal.Dialog>
       </Modal.Container>
@@ -885,8 +924,8 @@ export function OrchestratorDashboard({
   };
 
   return (
-    <main className="h-screen overflow-hidden bg-background p-4 text-foreground sm:p-6">
-      <div className="flex h-full min-h-0 w-full flex-col gap-4 lg:flex-row">
+    <main className="min-h-screen overflow-x-hidden bg-background p-4 text-foreground sm:p-6">
+      <div className="flex min-h-[calc(100dvh-2rem)] w-full flex-col gap-4 lg:flex-row">
         <Sidebar view={view} />
         <section className="flex min-h-0 flex-1 flex-col gap-4">
           <PageHeader {...headers[view]} />
@@ -1004,6 +1043,8 @@ export function OrchestratorDashboard({
         </section>
       </div>
       <TaskDetailModal
+        gitAction={gitAction}
+        gitState={gitState}
         onAction={taskAction}
         onClose={() => setSelectedTask(null)}
         projectName={selectedProject?.name ?? selectedTask?.projectId ?? ""}
