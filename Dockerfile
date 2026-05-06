@@ -2,8 +2,8 @@ FROM node:22-alpine AS deps
 WORKDIR /app
 RUN corepack enable && corepack prepare yarn@1.22.22 --activate
 COPY package.json yarn.lock ./
-RUN yarn config set network-timeout 600000 -g \
-  && yarn install --frozen-lockfile --non-interactive
+RUN yarn install --frozen-lockfile --non-interactive --ignore-engines --production=false --network-timeout 600000 --verbose \
+  || (cat yarn-error.log 2>/dev/null || true; exit 1)
 
 FROM node:22-alpine AS builder
 WORKDIR /app
