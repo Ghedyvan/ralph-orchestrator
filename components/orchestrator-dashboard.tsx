@@ -15,7 +15,7 @@ import {
   OctagonXmark,
   TriangleExclamation,
 } from "@gravity-ui/icons";
-import {Button, Card, Chip, Modal, ScrollShadow, useOverlayState} from "@heroui/react";
+import {Button, Card, Chip, Modal, ScrollShadow} from "@heroui/react";
 import {Kanban} from "@heroui-pro/react";
 
 type OrchestratorView = "overview" | "kanban" | "projects" | "tasks" | "runs";
@@ -349,33 +349,36 @@ function TaskDetailModal({
   runs: Run[];
   task: Task | null;
 }) {
-  const state = useOverlayState({isOpen: Boolean(task), onOpenChange: (open) => !open && onClose()});
   const taskRuns = task ? runs.filter((run) => run.taskId === task.id) : [];
 
-  if (!task) return null;
-
   return (
-    <Modal state={state}>
-      <Modal.Backdrop />
+    <Modal.Backdrop
+      isOpen={Boolean(task)}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      variant="blur"
+    >
       <Modal.Container placement="center" scroll="inside" size="lg">
         <Modal.Dialog>
+          <Modal.CloseTrigger />
           <Modal.Header>
             <div className="flex min-w-0 flex-col gap-2">
-              <Modal.Heading>{task.title}</Modal.Heading>
+              <Modal.Heading>{task?.title ?? "Task"}</Modal.Heading>
               <div className="flex flex-wrap gap-2">
-                <StatusChip status={task.status} />
+                <StatusChip status={task?.status ?? "queued"} />
                 <Chip size="sm" variant="secondary">
                   <Chip.Label>{projectName}</Chip.Label>
                 </Chip>
                 <Chip size="sm" variant="secondary">
-                  <Chip.Label>{task.provider}</Chip.Label>
+                  <Chip.Label>{task?.provider ?? "manual"}</Chip.Label>
                 </Chip>
               </div>
             </div>
-            <Modal.CloseTrigger />
           </Modal.Header>
           <Modal.Body>
-            <div className="grid gap-4">
+            {task ? (
+              <div className="grid gap-4">
               <section>
                 <p className="text-sm font-semibold">Prompt</p>
                 <pre className="mt-2 max-h-56 overflow-auto rounded-2xl bg-surface-secondary p-4 whitespace-pre-wrap text-sm leading-6 text-muted">
@@ -421,21 +424,22 @@ function TaskDetailModal({
                 </div>
               </section>
             </div>
+            ) : null}
           </Modal.Body>
           <Modal.Footer>
-            {(task.status === "failed" || task.status === "blocked" || task.status === "cancelled") ? (
+            {task && (task.status === "failed" || task.status === "blocked" || task.status === "cancelled") ? (
               <Button onPress={() => onAction(task.id, "retry")}>
                 <ArrowRotateLeft />
                 Retry
               </Button>
             ) : null}
-            {task.status === "review" ? (
+            {task?.status === "review" ? (
               <Button onPress={() => onAction(task.id, "complete-review")}>
                 <CircleCheck />
                 Marcar Done
               </Button>
             ) : null}
-            {task.status !== "completed" && task.status !== "cancelled" ? (
+            {task && task.status !== "completed" && task.status !== "cancelled" ? (
               <Button variant="danger-soft" onPress={() => onAction(task.id, "cancel")}>
                 <OctagonXmark />
                 Cancelar
@@ -444,7 +448,7 @@ function TaskDetailModal({
           </Modal.Footer>
         </Modal.Dialog>
       </Modal.Container>
-    </Modal>
+    </Modal.Backdrop>
   );
 }
 
