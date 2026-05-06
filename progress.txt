@@ -202,3 +202,10 @@
 - Validacoes remotas: container novo verificado, codigo corrigido presente, web healthy, worker em health starting apos redeploy.
 - Proximo passo: configurar em Coolify, no app/servico worker, `RALPH_GITHUB_TOKEN` ou `GITHUB_TOKEN` com permissao de leitura para `Ghedyvan/inertial-eclipse`, depois redeploy/retry da task.
 - S039 bloqueada: healthcheck correto para worker foi commitado em `6f9e814`, mas Coolify nao redeployou durante a janela de espera. Worker remoto segue vivo, porem `unhealthy` por healthcheck antigo herdado do Dockerfile. Nao foi editado docker-compose gerado na VPS porque contem secrets inline.
+
+2026-05-06 - Codex CLI no worker
+- Implementada opcao 1: Dockerfile instala `@openai/codex@0.128.0` e `bubblewrap`; docker-compose monta volume `codex-home` em `/root/.codex` no worker.
+- Commit `c9dfd6b` aplicado pelo Coolify: worker novo `worker-ldfqzk0eotp62e6oby4gbypw-203620220767` esta healthy, com `codex-cli 0.128.0` e volume `/root/.codex`.
+- Sessao Codex do host foi copiada para o volume Docker `ldfqzk0eotp62e6oby4gbypw_codex-home` sem imprimir conteudo de auth.
+- Validacao remota: `codex exec --skip-git-repo-check -` respondeu `OK` dentro do container.
+- Commit `45adea1` adiciona `bubblewrap`; ainda aguardava redeploy no momento do registro, mas Codex ja funciona usando bubblewrap vendorizado.
