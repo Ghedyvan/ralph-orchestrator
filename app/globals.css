@@ -6,6 +6,11 @@
   color-scheme: light;
 }
 
+html,
+body {
+  height: 100%;
+}
+
 body {
   min-height: 100vh;
   background: var(--background);
