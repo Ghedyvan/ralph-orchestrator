@@ -209,3 +209,10 @@
 - Sessao Codex do host foi copiada para o volume Docker `ldfqzk0eotp62e6oby4gbypw_codex-home` sem imprimir conteudo de auth.
 - Validacao remota: `codex exec --skip-git-repo-check -` respondeu `OK` dentro do container.
 - Commit `45adea1` adiciona `bubblewrap`; ainda aguardava redeploy no momento do registro, mas Codex ja funciona usando bubblewrap vendorizado.
+
+2026-05-06 - Sidebar fixa
+- Reproducao: o shell anterior renderizava a sidebar manual dentro de `<main className="min-h-screen ...">`, no mesmo fluxo de scroll da pagina; ao rolar o documento, a sidebar acompanhava o conteudo.
+- Alteracoes: `components/orchestrator-dashboard.tsx` passou a usar `AppLayout`, `Navbar` e `Sidebar` do HeroUI Pro; o layout raiz fica em `h-dvh overflow-hidden` e somente o wrapper de conteudo usa `overflow-y-auto`. Tipos locais de `@heroui-pro/react` foram ampliados para estes componentes.
+- Dependencia: adicionado `react-resizable-panels`, peer necessario para o `AppLayout` do HeroUI Pro durante o build.
+- Validacoes: `yarn lint`, `yarn typecheck`, `yarn build` passaram; smoke HTTP com `yarn start -p 3000` retornou 200 para `/` e `/kanban`.
+- Risco: medio-baixo; a mudanca troca o scaffold visual principal por componentes Pro oficiais. Risco residual concentrado em responsividade/mobile e comportamento de colapso da sidebar em navegadores nao testados visualmente neste container.

@@ -2,8 +2,7 @@
 
 import type {AgentProvider, DashboardSnapshot, Run, Task, TaskStatus} from "@/lib/orchestrator/types";
 
-import Link from "next/link";
-import {usePathname} from "next/navigation";
+import {usePathname, useRouter} from "next/navigation";
 import {useEffect, useMemo, useState} from "react";
 import {
   ArrowRotateLeft,
@@ -16,7 +15,7 @@ import {
   TriangleExclamation,
 } from "@gravity-ui/icons";
 import {Button, Card, Chip, Modal, ScrollShadow} from "@heroui/react";
-import {Kanban} from "@heroui-pro/react";
+import {AppLayout, Kanban, Navbar, Sidebar as ProSidebar} from "@heroui-pro/react";
 
 type OrchestratorView = "overview" | "kanban" | "projects" | "tasks" | "runs";
 
@@ -155,28 +154,61 @@ function PageHeader({
   );
 }
 
-function Sidebar({view}: {view: OrchestratorView}) {
+function SidebarNavigation({view}: {view: OrchestratorView}) {
   const pathname = usePathname();
 
   return (
-    <aside className="flex shrink-0 flex-col gap-4 border-b border-border pb-4 lg:w-64 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-4">
-      <div>
+    <>
+      <ProSidebar.Header>
         <p className="text-sm text-muted">Ralph</p>
         <p className="text-lg font-semibold">Orquestrador</p>
-      </div>
-      <nav className="flex gap-2 overflow-x-auto lg:flex-col lg:overflow-visible">
-        {navItems.map((item) => {
-          const active = view === item.view || pathname === item.href;
-          return (
-            <Link key={item.href} className="no-underline" href={item.href}>
-              <Button className="w-full justify-start whitespace-nowrap" variant={active ? "primary" : "outline"}>
-                {item.label}
-              </Button>
-            </Link>
-          );
-        })}
-      </nav>
-    </aside>
+      </ProSidebar.Header>
+      <ProSidebar.Content>
+        <ProSidebar.Group>
+          <ProSidebar.GroupLabel>Navegacao</ProSidebar.GroupLabel>
+          <ProSidebar.Menu aria-label="Navegacao principal">
+            {navItems.map((item) => {
+              const active = view === item.view || pathname === item.href;
+              return (
+                <ProSidebar.MenuItem key={item.href} href={item.href} isCurrent={active} tooltip={item.label}>
+                  <ProSidebar.MenuLabel>{item.label}</ProSidebar.MenuLabel>
+                </ProSidebar.MenuItem>
+              );
+            })}
+          </ProSidebar.Menu>
+        </ProSidebar.Group>
+      </ProSidebar.Content>
+    </>
+  );
+}
+
+function AppSidebar({view}: {view: OrchestratorView}) {
+  return (
+    <>
+      <ProSidebar>
+        <SidebarNavigation view={view} />
+        <ProSidebar.Rail />
+      </ProSidebar>
+      <ProSidebar.Mobile>
+        <SidebarNavigation view={view} />
+      </ProSidebar.Mobile>
+    </>
+  );
+}
+
+function AppNavbar({description, title}: {description: string; title: string}) {
+  return (
+    <Navbar maxWidth="full">
+      <Navbar.Header>
+        <AppLayout.MenuToggle tooltip="Abrir menu" />
+        <ProSidebar.Trigger tooltip="Alternar sidebar" />
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold">{title}</p>
+          <p className="hidden truncate text-xs text-muted sm:block">{description}</p>
+        </div>
+        <Navbar.Spacer />
+      </Navbar.Header>
+    </Navbar>
   );
 }
 
@@ -768,6 +800,7 @@ export function OrchestratorDashboard({
   initialSnapshot: DashboardSnapshot;
   view?: OrchestratorView;
 }) {
+  const router = useRouter();
   const [snapshot, setSnapshot] = useState(initialSnapshot);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [auth, setAuth] = useState<AuthState>({checked: false, enabled: false, authorized: false});
@@ -924,10 +957,15 @@ export function OrchestratorDashboard({
   };
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-background p-4 text-foreground sm:p-6">
-      <div className="flex min-h-[calc(100dvh-2rem)] w-full flex-col gap-4 lg:flex-row">
-        <Sidebar view={view} />
-        <section className="flex min-h-0 flex-1 flex-col gap-4">
+    <AppLayout
+      className="h-dvh overflow-hidden bg-background text-foreground"
+      navigate={router.push}
+      navbar={<AppNavbar {...headers[view]} />}
+      sidebar={<AppSidebar view={view} />}
+      sidebarCollapsible="offcanvas"
+    >
+      <div className="h-full overflow-y-auto overflow-x-hidden p-4 sm:p-6">
+        <section className="mx-auto flex min-h-full w-full max-w-[1600px] flex-col gap-4">
           <PageHeader {...headers[view]} />
 
           {auth.checked && auth.enabled && !auth.authorized ? (
@@ -1051,6 +1089,6 @@ export function OrchestratorDashboard({
         runs={snapshot.runs}
         task={selectedTask}
       />
-    </main>
+    </AppLayout>
   );
 }

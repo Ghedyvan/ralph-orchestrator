@@ -7,7 +7,10 @@ declare module "@heroui-pro/react" {
   };
 
   export const EmptyState: CompoundComponent;
+  export const AppLayout: CompoundComponent;
   export const Kanban: CompoundComponent;
   export const KPI: CompoundComponent;
   export const KPIGroup: CompoundComponent;
+  export const Navbar: CompoundComponent;
+  export const Sidebar: CompoundComponent;
 }
