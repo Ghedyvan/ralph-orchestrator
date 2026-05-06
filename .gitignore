@@ -1,0 +1,13 @@
+.next/
+node_modules/
+out/
+dist/
+build/
+*.tsbuildinfo
+data/orchestrator-state.json
+data/workspaces/
+
+.env*
+!.env.example
+
+.DS_Store

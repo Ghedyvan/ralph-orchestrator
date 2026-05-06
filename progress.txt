@@ -1,0 +1,171 @@
+# Progress
+
+## Contexto
+
+- Criado em: 2026-05-06T03:27:02.907Z
+- Solicitação inicial: $heroui-react-pro $heroui-pro-design-taste Usando NextJs, HeroUi v3, HeroUi Pro v3, crie um frontend kanban para visualizar o prd.json, deve ser usada como instalador de pacotes o yarn
+
+## Decisões
+
+## Execuções
+
+## Validações
+
+## Bloqueios
+
+## Próximos passos
+
+## 2026-05-06 - S001
+
+- Story: Criar scaffold Next.js com Yarn e dependencias HeroUI.
+- Alteracoes: base Next.js App Router, TypeScript, Tailwind CSS v4, HeroUI v3, HeroUI Pro v3, ESLint flat config e yarn.lock.
+- Validacao: yarn lint passou apos ajustar ESLint para o formato flat do eslint-config-next v16.
+
+
+## 2026-05-06 - S002
+
+- Story: Modelar leitura do prd.json.
+- Alteracoes: criado lib/prd.ts com tipos, normalizacao defensiva, agrupamento por status e fallback de erro; app/page.tsx passou a consumir os dados.
+- Validacoes: yarn lint e yarn tsc --noEmit passaram.
+
+
+## 2026-05-06 - S003
+
+- Story: Implementar quadro Kanban com HeroUI Pro.
+- Alteracoes: criado components/prd-kanban.tsx com colunas por status, cards de story e leitura somente visual.
+- Validacoes: yarn lint e yarn tsc --noEmit passaram.
+
+
+## 2026-05-06 - S004
+
+- Story: Adicionar resumo visual e estados vazios.
+- Alteracoes: criado components/prd-summary.tsx com KPI/KPIGroup; adicionados EmptyState global e por coluna no Kanban.
+- Validacoes: yarn lint e yarn tsc --noEmit passaram.
+
+
+## 2026-05-06 - S005
+
+- Story: Validar build e documentar uso.
+- Alteracoes: README.md criado, script typecheck adicionado, dependencias peer motion/recharts instaladas e app/page.tsx marcado como dynamic para ler prd.json sob demanda.
+- Validacoes: yarn lint, yarn typecheck e yarn build passaram.
+
+
+## 2026-05-06 - S006
+
+- Story: Ajustar Kanban para ocupar 100% da tela e abrir modal com detalhes ao clicar em um card.
+- Alteracoes: app/page.tsx usa h-screen/overflow-hidden sem max-width; components/prd-kanban.tsx usa altura cheia, selecao de story e Modal com detalhes completos.
+- Validacoes: yarn lint, yarn typecheck e yarn build passaram.
+
+
+## 2026-05-06 - S008
+
+- Story: Definir arquitetura 24/7 e modelo de dados.
+- Alteracoes: docs/orchestrator-architecture.md e lib/orchestrator/types.ts.
+- Validacoes: yarn lint e yarn typecheck passaram.
+
+
+## 2026-05-06 - S009
+
+- Story: Criar datastore local e APIs multi-projeto.
+- Alteracoes: lib/orchestrator/store.ts, app/api/orchestrator/* e .gitignore.
+- Validacoes: yarn lint e yarn typecheck passaram.
+
+
+## 2026-05-06 - S010
+
+- Story: Criar dashboard de orquestramento.
+- Alteracoes: components/orchestrator-dashboard.tsx e app/page.tsx.
+- Validacoes: yarn lint e yarn typecheck passaram.
+
+
+## 2026-05-06 - S011
+
+- Story: Criar worker 24/7 em modo seguro.
+- Alteracoes: scripts/worker.mjs, app/api/orchestrator/runs/route.ts e scripts package.json.
+- Validacoes: yarn lint, yarn typecheck e yarn worker:once passaram.
+
+
+## 2026-05-06 - S012
+
+- Story: Documentar deploy VPS e providers externos.
+- Alteracoes: README.md atualizado com fluxo 24/7, VPS e providers.
+- Validacoes: yarn lint, yarn typecheck, yarn worker:once e yarn build passaram.
+
+
+## 2026-05-06 - S007
+
+- Story: Criar checklist completa e base Supabase.
+- Alteracoes: checklist.md, supabase/schema.sql, lib/orchestrator/supabase.ts, lib/orchestrator/store.ts, package/yarn.
+- Validacoes: yarn lint e yarn typecheck passaram.
+
+
+## 2026-05-06 - S014
+
+- Story: Adicionar autenticacao admin segura.
+- Alteracoes: auth guard, rota auth, protecao POST, UI login admin, checklist.
+- Validacoes: yarn lint e yarn typecheck passaram.
+
+
+## 2026-05-06 - S015
+
+- Story: Fortalecer worker com lock, timeout, cancelamento e Git workspace.
+- Alteracoes: worker, types/store, tasks PATCH API, schema, checklist.
+- Validacoes: yarn lint, yarn typecheck e yarn worker:once passaram.
+
+
+## 2026-05-06 - S016
+
+- Story: Adicionar logs em tempo real e detalhes de run na UI.
+- Alteracoes: endpoint SSE, dashboard runs/logs, acoes task, checklist.
+- Validacoes: yarn lint e yarn typecheck passaram.
+
+
+## 2026-05-06 - S017
+
+- Story: Adicionar deploy VPS com Supabase e Docker Compose.
+- Alteracoes: Dockerfile, docker-compose.yml, .dockerignore, docs/supabase.md, README.md, checklist.md.
+- Validacoes: yarn lint, yarn typecheck, yarn worker:once e yarn build passaram.
+
+
+## 2026-05-06 - S013
+
+- Story: Implementar Git workspace seguro.
+- Alteracoes: worker git clone/fetch/branch opcional, changedFiles/diffSummary em Run, schema Supabase, UI diff.
+- Validacoes: yarn lint, yarn typecheck e yarn worker:once passaram.
+
+
+## 2026-05-06 - S018
+
+- Story: Adicionar politica de seguranca por projeto.
+- Alteracoes: worker allowlist, docker-compose env, docs/security.md, README, checklist.
+- Validacoes: yarn lint, yarn typecheck e yarn worker:once passaram.
+
+
+## 2026-05-06 - S019
+
+- Story: Implementar providers reais como adapters seguros.
+- Alteracoes: scripts/providers.mjs, worker provider router, docker-compose env, README, checklist.
+- Validacoes: yarn lint, yarn typecheck e yarn worker:once passaram.
+
+
+## 2026-05-06 - S020
+
+- Story: Adicionar templates e config por projeto.
+- Alteracoes: tipos/store/API/schema/UI para templates e config por projeto.
+- Validacoes: yarn lint, yarn typecheck e yarn worker:once passaram.
+
+
+## 2026-05-06 - S021
+
+- Story: Adicionar painel diff e arquivos alterados.
+- Alteracoes: botao Revalidar em painel de runs e uso de changedFiles/diffSummary.
+- Validacoes: yarn lint, yarn typecheck e yarn worker:once passaram.
+
+
+2026-05-06 - Continuação R004 Git real
+- S022 concluida: rota protegida /api/orchestrator/git e modulo git-actions para status, commit, push e PR; escrita bloqueada por RALPH_GIT_WRITE_ENABLED, push por RALPH_GIT_PUSH_ENABLED e PR por RALPH_GIT_PR_ENABLED.
+- S023 concluida: Run agora persiste commitSha, remoteBranch, prUrl e gitStatus no JSON/Supabase; schema SQL atualizado.
+- S024 concluida: dashboard HeroUI mostra metadados Git e botoes Git status, Commit, Push e PR com tratamento de erro/sucesso.
+- S025 concluida: README, docs/security.md, Dockerfile, docker-compose.yml e checklist atualizados para fluxo Git write/PR.
+- Validacoes: yarn lint, yarn typecheck, yarn worker:once e yarn build passaram.
+- Git local: nao ha repositorio Git neste diretorio, entao nenhum commit foi feito.

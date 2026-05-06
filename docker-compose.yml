@@ -1,0 +1,49 @@
+services:
+  web:
+    build: .
+    command: yarn start
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
+      RALPH_ADMIN_TOKEN: ${RALPH_ADMIN_TOKEN:-}
+      RALPH_RUNNER_ENABLED: ${RALPH_RUNNER_ENABLED:-0}
+      RALPH_GIT_WRITE_ENABLED: ${RALPH_GIT_WRITE_ENABLED:-0}
+      RALPH_GIT_PUSH_ENABLED: ${RALPH_GIT_PUSH_ENABLED:-0}
+      RALPH_GIT_PR_ENABLED: ${RALPH_GIT_PR_ENABLED:-0}
+      RALPH_FORBIDDEN_PATHS: ${RALPH_FORBIDDEN_PATHS:-.env,.env.local,.ssh,id_rsa,id_ed25519}
+    volumes:
+      - ralph-data:/app/data
+    restart: unless-stopped
+
+  worker:
+    build: .
+    command: yarn worker
+    environment:
+      NODE_ENV: production
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
+      RALPH_ADMIN_TOKEN: ${RALPH_ADMIN_TOKEN:-}
+      RALPH_RUNNER_ENABLED: ${RALPH_RUNNER_ENABLED:-0}
+      RALPH_GIT_ENABLED: ${RALPH_GIT_ENABLED:-0}
+      RALPH_GIT_WRITE_ENABLED: ${RALPH_GIT_WRITE_ENABLED:-0}
+      RALPH_GIT_PUSH_ENABLED: ${RALPH_GIT_PUSH_ENABLED:-0}
+      RALPH_GIT_PR_ENABLED: ${RALPH_GIT_PR_ENABLED:-0}
+      RALPH_WORKER_INTERVAL_MS: ${RALPH_WORKER_INTERVAL_MS:-5000}
+      RALPH_TASK_TIMEOUT_MS: ${RALPH_TASK_TIMEOUT_MS:-1800000}
+      RALPH_ALLOWED_REPOS: ${RALPH_ALLOWED_REPOS:-}
+      RALPH_ALLOWED_COMMANDS: ${RALPH_ALLOWED_COMMANDS:-yarn lint,yarn typecheck,yarn build}
+      RALPH_FORBIDDEN_PATHS: ${RALPH_FORBIDDEN_PATHS:-.env,.env.local,.ssh,id_rsa,id_ed25519}
+      RALPH_PROVIDER_CALLS_ENABLED: ${RALPH_PROVIDER_CALLS_ENABLED:-0}
+      CODEX_API_KEY: ${CODEX_API_KEY:-}
+      OPENCODE_GO_API_KEY: ${OPENCODE_GO_API_KEY:-}
+      MIMO_API_KEY: ${MIMO_API_KEY:-}
+      MINIMAX_API_KEY: ${MINIMAX_API_KEY:-}
+    volumes:
+      - ralph-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  ralph-data:

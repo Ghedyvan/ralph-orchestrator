@@ -1,0 +1,480 @@
+{
+  "project": "ralph-kanban",
+  "version": "1.0.0",
+  "createdAt": "2026-05-06T03:27:02.908Z",
+  "updatedAt": "2026-05-06T04:36:26.843Z",
+  "activeRequest": {
+    "id": "R005",
+    "text": "Fazer projeto ficar completamente funcional e publicar commit em novo repositorio GitHub.",
+    "createdAt": "2026-05-06T04:33:48.512Z"
+  },
+  "requests": [
+    {
+      "id": "R001",
+      "text": "$heroui-react-pro $heroui-pro-design-taste Usando NextJs, HeroUi v3, HeroUi Pro v3, crie um frontend kanban para visualizar o prd.json, deve ser usada como instalador de pacotes o yarn",
+      "createdAt": "2026-05-06T03:27:02.908Z",
+      "status": "done"
+    },
+    {
+      "id": "R002",
+      "text": "Ajustar Kanban para ocupar 100% da tela e abrir modal com detalhes ao clicar em um card",
+      "createdAt": "2026-05-06T03:45:53.354Z",
+      "status": "done"
+    },
+    {
+      "id": "R003",
+      "text": "Transformar em plataforma 24/7 de orquestramento multi-repos, com delegacao de tasks e base para providers Mimo, Minimax e opencode go, semelhante ao Symphony",
+      "createdAt": "2026-05-06T03:52:32.011Z",
+      "status": "done"
+    },
+    {
+      "id": "R004",
+      "text": "Continuar implementacao das demais funcionalidades: completar Git real com commit, push e PR aprovados pela UI, mantendo seguranca e HeroUI.",
+      "createdAt": "2026-05-06T04:04:18.654Z",
+      "status": "done"
+    },
+    {
+      "id": "R005",
+      "text": "Fazer projeto ficar completamente funcional e publicar commit em novo repositorio GitHub.",
+      "createdAt": "2026-05-06T04:33:48.512Z",
+      "status": "in_progress"
+    }
+  ],
+  "stories": [
+    {
+      "id": "S001",
+      "requestId": "R001",
+      "title": "Criar scaffold Next.js com Yarn e dependencias HeroUI",
+      "description": "Criar a base do app Next.js com TypeScript, Tailwind CSS v4, HeroUI v3, HeroUI Pro v3 e scripts usando Yarn.",
+      "acceptanceCriteria": [
+        "package.json usa scripts compatíveis com Yarn.",
+        "O app possui estrutura Next.js App Router mínima.",
+        "Os estilos importam Tailwind, @heroui/styles e @heroui-pro/react/css na ordem correta."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Story iniciada: scaffold Next.js com Yarn e HeroUI.\nScaffold criado com Next.js App Router, TypeScript, Tailwind CSS v4, HeroUI v3, HeroUI Pro v3 e Yarn. Validacao: yarn lint passou.",
+      "updatedAt": "2026-05-06T03:29:43.224Z"
+    },
+    {
+      "id": "S002",
+      "requestId": "R001",
+      "title": "Modelar leitura do prd.json",
+      "description": "Criar tipos e utilitários server-side para ler e normalizar requests e stories a partir do prd.json local.",
+      "acceptanceCriteria": [
+        "A leitura usa JSON parse estruturado.",
+        "A UI recebe dados normalizados por status.",
+        "Existe fallback quando prd.json estiver vazio ou indisponível."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Story iniciada: leitura e normalizacao server-side do prd.json.\nLeitura server-side do prd.json criada em lib/prd.ts com tipos, normalizacao por status e fallback de erro. Validacoes: yarn lint e yarn tsc --noEmit passaram.",
+      "updatedAt": "2026-05-06T03:30:39.414Z"
+    },
+    {
+      "id": "S003",
+      "requestId": "R001",
+      "title": "Implementar quadro Kanban com HeroUI Pro",
+      "description": "Renderizar as stories do prd.json em colunas Kanban usando o componente Pro kanban e componentes base do HeroUI.",
+      "acceptanceCriteria": [
+        "As colunas refletem os status pending, in_progress, blocked, done e failed.",
+        "Cada card exibe titulo, criterio de aceite, status de validacao e request relacionada.",
+        "O quadro e somente leitura para evitar alterar o prd.json pela interface."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Story iniciada: quadro Kanban somente leitura com HeroUI Pro.\nQuadro Kanban somente leitura implementado com @heroui-pro/react, colunas por status e cards com titulo, criterio, request e validacao. Validacoes: yarn lint e yarn tsc --noEmit passaram.",
+      "updatedAt": "2026-05-06T03:32:05.553Z"
+    },
+    {
+      "id": "S004",
+      "requestId": "R001",
+      "title": "Adicionar resumo visual e estados vazios",
+      "description": "Criar area de resumo com KPIs e estados vazios usando HeroUI/HeroUI Pro com acabamento visual consistente.",
+      "acceptanceCriteria": [
+        "O topo mostra totais relevantes do prd.json.",
+        "Colunas vazias exibem estado vazio claro.",
+        "A tela permanece utilizavel em viewport desktop e mobile."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Story iniciada: resumo visual com KPIs e estados vazios.\nResumo visual implementado com KPI/KPIGroup, estados vazios globais e por coluna adicionados, layout responsivo mantido. Validacoes: yarn lint e yarn tsc --noEmit passaram.",
+      "updatedAt": "2026-05-06T03:33:04.229Z"
+    },
+    {
+      "id": "S005",
+      "requestId": "R001",
+      "title": "Validar build e documentar uso",
+      "description": "Rodar validações disponíveis, registrar resultado no progress.txt e documentar como executar o app.",
+      "acceptanceCriteria": [
+        "yarn lint ou validação equivalente foi executada.",
+        "yarn build foi executado ou falha foi registrada.",
+        "README explica como instalar e rodar o Kanban."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Story iniciada: validacao final e documentacao de uso.\nREADME criado, script typecheck adicionado, peers motion/recharts instalados e pagina marcada como dinamica para ler prd.json sob demanda. Validacoes finais: yarn lint, yarn typecheck e yarn build passaram.",
+      "updatedAt": "2026-05-06T03:34:42.128Z"
+    },
+    {
+      "id": "S006",
+      "requestId": "R002",
+      "title": "Ajustar Kanban para ocupar 100% da tela e abrir modal com detalhes ao...",
+      "description": "Implementar uma primeira etapa pequena e segura para: Ajustar Kanban para ocupar 100% da tela e abrir modal com detalhes ao clicar em um card",
+      "acceptanceCriteria": [
+        "A mudanca fica limitada ao escopo da solicitacao atual.",
+        "A implementacao e validada por teste, lint, typecheck, build ou validacao manual documentada.",
+        "prd.json e progress.txt sao atualizados com o resultado."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Layout ajustado para h-screen/100% da viewport; Kanban ocupa o espaco restante com colunas em altura cheia; clique no card abre modal de detalhes com request, descricao, criterios, notas, status e validacao. Validacoes: yarn lint, yarn typecheck e yarn build passaram.",
+      "updatedAt": "2026-05-06T03:45:57.626Z"
+    },
+    {
+      "id": "S008",
+      "requestId": "R003",
+      "title": "Definir arquitetura 24/7 e modelo de dados",
+      "description": "Criar docs e tipos base para projetos, tasks, runs, providers e politica de execucao segura.",
+      "acceptanceCriteria": [
+        "Arquitetura documenta dashboard, API, worker, workspace e providers.",
+        "Modelo de dados cobre projetos, tasks, runs, logs e provider.",
+        "Seguranca explicita: sem secrets em arquivos e execucao desativada por padrao."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Story iniciada: arquitetura e tipos base do orquestrador 24/7.\nArquitetura 24/7 documentada em docs/orchestrator-architecture.md e tipos base criados em lib/orchestrator/types.ts. Execucao real desativada por politica; secrets apenas como nomes de env vars. Validacoes: yarn lint e yarn typecheck passaram.",
+      "updatedAt": "2026-05-06T03:53:35.276Z"
+    },
+    {
+      "id": "S009",
+      "requestId": "R003",
+      "title": "Criar datastore local e APIs multi-projeto",
+      "description": "Implementar store JSON local e rotas API para criar/listar projetos e tasks.",
+      "acceptanceCriteria": [
+        "APIs GET/POST existem para projetos e tasks.",
+        "Dados persistem em arquivo local ignorado pelo Git.",
+        "Validacao basica impede payload vazio/invalido."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Story iniciada: datastore local e APIs multi-projeto/task.\nDatastore JSON local criado em lib/orchestrator/store.ts, APIs criadas para snapshot, projects e tasks, data/orchestrator-state.json ignorado pelo Git. Validacoes: yarn lint e yarn typecheck passaram.",
+      "updatedAt": "2026-05-06T03:54:43.148Z"
+    },
+    {
+      "id": "S010",
+      "requestId": "R003",
+      "title": "Criar dashboard de orquestramento",
+      "description": "Substituir tela principal por UI para projetos, fila de tasks e criacao de nova task.",
+      "acceptanceCriteria": [
+        "Dashboard mostra projetos e tasks.",
+        "Formulario cria task para repo/projeto escolhido.",
+        "UI segue HeroUI e ocupa 100% da viewport."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Story iniciada: dashboard multi-projeto e fila de tasks.\nDashboard de orquestramento criado em components/orchestrator-dashboard.tsx e app/page.tsx atualizado para console 100% viewport com KPIs, cadastro de projetos, criacao de tasks, lista de projetos e fila. Validacoes: yarn lint e yarn typecheck passaram.",
+      "updatedAt": "2026-05-06T03:56:10.418Z"
+    },
+    {
+      "id": "S011",
+      "requestId": "R003",
+      "title": "Criar worker 24/7 em modo seguro",
+      "description": "Adicionar worker que processa fila em dry-run, prepara workspace e registra logs/status.",
+      "acceptanceCriteria": [
+        "Worker roda em loop via script yarn worker.",
+        "Execucao real fica bloqueada salvo flag explicita.",
+        "Logs de cada run ficam visiveis pela API/store."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Story iniciada: worker 24/7 em modo seguro.\nWorker 24/7 criado em scripts/worker.mjs com loop yarn worker, modo one-shot yarn worker:once, workspace data/workspaces, logs/runs persistidos e execucao real bloqueada por padrao via RALPH_RUNNER_ENABLED. API de runs/logs criada. Validacoes: yarn lint, yarn typecheck e yarn worker:once passaram.",
+      "updatedAt": "2026-05-06T03:57:13.974Z"
+    },
+    {
+      "id": "S012",
+      "requestId": "R003",
+      "title": "Documentar deploy VPS e providers externos",
+      "description": "Documentar uso em VPS, systemd/Docker futuro, env vars e adapters Mimo/Minimax/opencode go.",
+      "acceptanceCriteria": [
+        "README explica fluxo 24/7.",
+        "Docs citam variaveis de ambiente sem valores reais.",
+        "Validacoes finais passam."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Story iniciada: documentacao VPS e providers externos.\nREADME atualizado com fluxo 24/7, comandos VPS, worker, providers e env vars sem valores. Documentacao de arquitetura ja criada. Validacoes finais: yarn lint, yarn typecheck, yarn worker:once e yarn build passaram.",
+      "updatedAt": "2026-05-06T03:58:05.650Z"
+    },
+    {
+      "id": "S007",
+      "requestId": "R004",
+      "title": "Criar checklist completa e base Supabase",
+      "description": "Criar checklist.md com todos itens recomendados, adicionar schema SQL Supabase e adapter de store Supabase com fallback JSON.",
+      "acceptanceCriteria": [
+        "checklist.md existe com todos itens.",
+        "Schema Supabase documenta tabelas principais.",
+        "Store escolhe Supabase via env sem gravar secrets."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Story iniciada: checklist e base Supabase.\nchecklist.md criada; schema SQL Supabase criado; @supabase/supabase-js instalado; store server-side agora usa Supabase quando SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY existem, com fallback JSON local. Validacoes: yarn lint e yarn typecheck passaram.",
+      "updatedAt": "2026-05-06T04:06:07.038Z"
+    },
+    {
+      "id": "S014",
+      "requestId": "R004",
+      "title": "Adicionar autenticacao admin segura",
+      "description": "Adicionar guard de API/UI por token admin via env e tela bloqueada quando auth nao estiver configurada/autorizada.",
+      "acceptanceCriteria": [
+        "APIs sensiveis exigem auth quando RALPH_ADMIN_TOKEN existir.",
+        "UI tem estado de acesso/admin.",
+        "Nenhum token real e escrito."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Story iniciada: autenticacao admin por token env.\nAuth admin opcional implementada: lib/orchestrator/auth.ts, API /auth, POST projects/tasks protegidos quando RALPH_ADMIN_TOKEN existe, UI de login com token em localStorage. checklist.md marcado. Validacoes: yarn lint e yarn typecheck passaram.",
+      "updatedAt": "2026-05-06T04:07:14.174Z"
+    },
+    {
+      "id": "S015",
+      "requestId": "R004",
+      "title": "Fortalecer worker com lock, timeout, cancelamento e Git workspace",
+      "description": "Adicionar lock por projeto, timeout, cancelamento, branch workspace scaffold e allowlist de paths proibidos.",
+      "acceptanceCriteria": [
+        "Worker evita duas tasks no mesmo projeto.",
+        "Timeout/cancelamento atualizam status.",
+        "Git workspace prepara clone/fetch em modo seguro."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Story iniciada: worker robusto e Git workspace seguro.\nWorker ganhou lock por projeto, timeout, status review, branchName/workspacePath, GIT_PLAN.md, forbidden paths documentados e API PATCH cancel/retry/complete-review. checklist.md marcado nos itens implementados. Validacoes: yarn lint, yarn typecheck e yarn worker:once passaram.",
+      "updatedAt": "2026-05-06T04:08:20.638Z"
+    },
+    {
+      "id": "S016",
+      "requestId": "R004",
+      "title": "Adicionar logs em tempo real e detalhes de run na UI",
+      "description": "Criar SSE de logs e painel HeroUI para runs, logs, arquivos, retry/cancel.",
+      "acceptanceCriteria": [
+        "Endpoint SSE existe.",
+        "Dashboard mostra runs/logs.",
+        "Acoes retry/cancel existem com API segura."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Story iniciada: logs em tempo real e detalhes de run na UI.\nSSE de logs criado em /api/orchestrator/logs/stream; dashboard mostra runs/logs, branch/workspace e acoes retry, Review OK e cancelar. checklist.md atualizado. Validacoes: yarn lint e yarn typecheck passaram.",
+      "updatedAt": "2026-05-06T04:10:17.279Z"
+    },
+    {
+      "id": "S017",
+      "requestId": "R004",
+      "title": "Adicionar deploy VPS com Supabase e Docker Compose",
+      "description": "Adicionar docker-compose, Dockerfile, docs VPS/Supabase e checklist final marcada.",
+      "acceptanceCriteria": [
+        "Docker Compose define web/worker.",
+        "Docs explicam Supabase env vars sem valores.",
+        "Validacoes finais passam."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Story iniciada: deploy VPS com Supabase e Docker Compose.\nDockerfile, docker-compose.yml, .dockerignore e docs/supabase.md adicionados. README atualizado com VPS/Supabase. checklist.md marcou deploy e validacoes finais. Validacoes: yarn lint, yarn typecheck, yarn worker:once e yarn build passaram.",
+      "updatedAt": "2026-05-06T04:11:28.696Z"
+    },
+    {
+      "id": "S013",
+      "requestId": "R004",
+      "title": "Implementar Git workspace seguro",
+      "description": "Adicionar clone/fetch/branch em modo seguro, diff e lista de arquivos alterados sem push automatico.",
+      "acceptanceCriteria": [
+        "Repo e clonado/fetch em workspace isolado quando RALPH_GIT_ENABLED=1.",
+        "Branch por task e criada.",
+        "Diff/arquivos alterados sao registrados sem push automatico."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Story iniciada: Git workspace seguro sem push automatico.\nGit workspace seguro adicionado: RALPH_GIT_ENABLED=1 habilita clone/fetch/checkout branch por task sem push; worker registra changedFiles/diffSummary e UI mostra arquivos/diff. Git completo com commit/PR segue pendente no checklist. Validacoes: yarn lint, yarn typecheck e yarn worker:once passaram.",
+      "updatedAt": "2026-05-06T04:14:18.959Z"
+    },
+    {
+      "id": "S018",
+      "requestId": "R004",
+      "title": "Adicionar politica de seguranca por projeto",
+      "description": "Adicionar allowlist de repos/comandos, paths proibidos configuraveis e docs de usuario Linux/sandbox.",
+      "acceptanceCriteria": [
+        "Config de seguranca existe por env/projeto.",
+        "Worker bloqueia repos fora da allowlist quando configurada.",
+        "Docs explicam usuario sem privilegio e sandbox."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Story iniciada: politica de seguranca por projeto.\nPolitica de seguranca adicionada: RALPH_ALLOWED_REPOS, RALPH_ALLOWED_COMMANDS e RALPH_FORBIDDEN_PATHS; worker bloqueia repo fora da allowlist; workspace grava SECURITY_POLICY.md; docs/security.md criado e README atualizado. Validacoes: yarn lint, yarn typecheck e yarn worker:once passaram.",
+      "updatedAt": "2026-05-06T04:15:17.063Z"
+    },
+    {
+      "id": "S019",
+      "requestId": "R004",
+      "title": "Implementar providers reais como adapters seguros",
+      "description": "Criar adapters Codex, opencode-go, Mimo e Minimax com dry-run por padrao e chamadas bloqueadas sem env/flag.",
+      "acceptanceCriteria": [
+        "Adapters existem com contrato comum.",
+        "Provider router escolhe provider por task.",
+        "Sem secrets hardcoded."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Story iniciada: provider adapters seguros.\nProvider adapters seguros criados em scripts/providers.mjs; worker roteia manual/docs/test/default para providers; chamadas reais bloqueadas por RALPH_PROVIDER_CALLS_ENABLED e env vars. checklist.md marcou providers/roteador. Validacoes: yarn lint, yarn typecheck e yarn worker:once passaram.",
+      "updatedAt": "2026-05-06T04:16:44.078Z"
+    },
+    {
+      "id": "S020",
+      "requestId": "R004",
+      "title": "Adicionar templates e config por projeto",
+      "description": "Adicionar templates bug/feature/refactor/docs e campos de config de projeto para validacoes/modelo/autonomia.",
+      "acceptanceCriteria": [
+        "UI permite escolher template.",
+        "Projeto guarda comandos de validacao/modelo/autonomia.",
+        "Checklist marca UX Nova task/templates/config."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Story iniciada: templates e config por projeto.\nTemplates bug/feature/refactor/docs adicionados na UI; projeto agora guarda defaultProvider, validationCommands e autonomyLevel no tipo/store/API/schema; checklist.md marcou templates, Nova task e config por projeto. Validacoes: yarn lint, yarn typecheck e yarn worker:once passaram.",
+      "updatedAt": "2026-05-06T04:18:10.726Z"
+    },
+    {
+      "id": "S021",
+      "requestId": "R004",
+      "title": "Adicionar painel diff e arquivos alterados",
+      "description": "Mostrar diff summary, arquivos alterados e botao validar novamente no dashboard.",
+      "acceptanceCriteria": [
+        "Dashboard mostra arquivos alterados por run.",
+        "Botao revalidar cria task de validacao.",
+        "Diff fica visivel sem sair da UI."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Story iniciada: painel diff e revalidacao.\nPainel Runs mostra changedFiles e diffSummary; botao Revalidar cria nova task provider opencode-go apontando workspace/arquivos alterados. checklist.md ja marcava diff/revalidacao. Validacoes: yarn lint, yarn typecheck e yarn worker:once passaram.",
+      "updatedAt": "2026-05-06T04:18:48.952Z"
+    },
+    {
+      "id": "S022",
+      "requestId": "R004",
+      "title": "Criar acoes Git write seguras",
+      "description": "Adicionar camada server-side para commit, push e criacao de PR, bloqueada por env e validando workspace/paths.",
+      "acceptanceCriteria": [
+        "API protegida executa commit/push/PR somente com RALPH_GIT_WRITE_ENABLED=1.",
+        "Workspace precisa estar dentro de data/workspaces e conter repo git.",
+        "Paths proibidos bloqueiam commit."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Story iniciada: acoes Git write seguras.\nAcoes Git write seguras criadas: /api/orchestrator/git com status/commit/push/pr, validacao de workspace em data/workspaces, paths proibidos e flags RALPH_GIT_WRITE_ENABLED/RALPH_GIT_PUSH_ENABLED/RALPH_GIT_PR_ENABLED. Validacoes: yarn lint e yarn typecheck passaram.",
+      "updatedAt": "2026-05-06T04:27:05.925Z"
+    },
+    {
+      "id": "S023",
+      "requestId": "R004",
+      "title": "Persistir metadados Git e Supabase",
+      "description": "Salvar commitSha, remoteBranch, prUrl e status git em runs, schema Supabase e fallback JSON.",
+      "acceptanceCriteria": [
+        "Tipos incluem metadados Git.",
+        "Store mapeia campos Supabase e JSON.",
+        "Schema SQL possui colunas novas."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Story iniciada: persistencia de metadados Git.\nMetadados Git adicionados em tipos, schema Supabase, mapper de store e updateRun; rota Git persiste commitSha, remoteBranch, prUrl e gitStatus. Validacoes: yarn lint e yarn typecheck passaram.",
+      "updatedAt": "2026-05-06T04:27:32.989Z"
+    },
+    {
+      "id": "S024",
+      "requestId": "R004",
+      "title": "Adicionar controles HeroUI para aprovar Git",
+      "description": "Adicionar botoes e estados na UI para commit, push e abrir PR a partir de run em review.",
+      "acceptanceCriteria": [
+        "UI mostra commit/branch/PR/status.",
+        "Acoes usam onPress e API auth.",
+        "Erros aparecem sem quebrar dashboard."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Story iniciada: controles HeroUI para aprovar Git.\nDashboard mostra commitSha, remoteBranch, prUrl e gitStatus; botoes Revalidar/Git status/Commit/Push/PR usam onPress e API auth; erros/sucesso aparecem no painel. Validacoes: yarn lint e yarn typecheck passaram.",
+      "updatedAt": "2026-05-06T04:28:12.288Z"
+    },
+    {
+      "id": "S025",
+      "requestId": "R004",
+      "title": "Documentar fluxo Git write e fechar checklist",
+      "description": "Atualizar README/docs/checklist com fluxo seguro de commit/push/PR e validar tudo.",
+      "acceptanceCriteria": [
+        "Checklist Git real marcado quando commit/push/PR existirem.",
+        "Docs explicam env vars sem valores.",
+        "lint/typecheck/worker/build passam."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Story iniciada: docs Git write e checklist final.\nDocs Git write/PR atualizados no README e docs/security.md; Dockerfile instala git/gh; docker-compose expõe flags RALPH_GIT_*; checklist Git real marcado. Validacoes finais: yarn lint, yarn typecheck, yarn worker:once e yarn build passaram.",
+      "updatedAt": "2026-05-06T04:29:06.355Z"
+    },
+    {
+      "id": "S026",
+      "requestId": "R005",
+      "title": "Adicionar configuracao production-ready",
+      "description": "Criar .env.example, healthcheck e scripts auxiliares sem secrets.",
+      "acceptanceCriteria": [
+        ".env.example lista variaveis sem valores reais.",
+        "Healthcheck HTTP existe.",
+        "Scripts ajudam setup/publicacao sem tocar secrets."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Story iniciada: configuracao production-ready.\nAdicionados .env.example sem secrets, endpoint /api/health, script scripts/publish-github.mjs e script yarn publish:github; Dockerfile ganhou HEALTHCHECK. Validacoes: yarn lint e yarn typecheck passaram.",
+      "updatedAt": "2026-05-06T04:34:29.083Z"
+    },
+    {
+      "id": "S027",
+      "requestId": "R005",
+      "title": "Tornar providers executaveis por configuracao",
+      "description": "Implementar adapters seguros com CLI/local e HTTP OpenAI-compatible configuraveis por env.",
+      "acceptanceCriteria": [
+        "Providers codex/opencode-go podem rodar comando configurado.",
+        "Providers mimo/minimax podem chamar endpoint configurado.",
+        "Execucao segue bloqueada por flags e sem secrets hardcoded."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Story iniciada: providers executaveis por configuracao.\nProviders agora executam por configuracao: codex/opencode-go via CODEX_COMMAND/OPENCODE_GO_COMMAND com placeholders {prompt}/{workspace}; mimo/minimax via endpoint HTTP chat-completions configuravel; worker usa providerReady dinamico. Validacoes: yarn lint, yarn typecheck e yarn worker:once passaram.",
+      "updatedAt": "2026-05-06T04:35:33.217Z"
+    },
+    {
+      "id": "S028",
+      "requestId": "R005",
+      "title": "Executar smoke e documentar operacao completa",
+      "description": "Validar lint/typecheck/worker/build e atualizar docs de operacao fim a fim.",
+      "acceptanceCriteria": [
+        "Docs explicam start worker, providers, git, Supabase e GitHub publish.",
+        "Smoke local passa.",
+        "progress registra cobertura."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Story iniciada: smoke e documentacao operacional.\nDocs de operacao atualizados: healthcheck, providers CLI/HTTP, publish GitHub e arquitetura atual. Smoke completo passou: yarn lint, yarn typecheck, yarn worker:once e yarn build.",
+      "updatedAt": "2026-05-06T04:36:26.802Z"
+    },
+    {
+      "id": "S029",
+      "requestId": "R005",
+      "title": "Inicializar Git, commit e publicar GitHub",
+      "description": "Criar repo Git local, commitar codigo e tentar criar/push em novo repo GitHub.",
+      "acceptanceCriteria": [
+        "Repo Git local existe com commit.",
+        "Arquivos sensiveis continuam ignorados.",
+        "Publicacao GitHub feita ou bloqueio por credencial ausente registrado."
+      ],
+      "status": "in_progress",
+      "passes": false,
+      "notes": "Story iniciada: Git local, commit e publicacao GitHub.",
+      "updatedAt": "2026-05-06T04:36:26.843Z"
+    }
+  ]
+}
