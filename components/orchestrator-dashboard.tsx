@@ -1,6 +1,6 @@
 "use client";
 
-import type {AgentProvider, DashboardSnapshot} from "@/lib/orchestrator/types";
+import type {AgentProvider, DashboardSnapshot, Task, TaskStatus} from "@/lib/orchestrator/types";
 
 import {useEffect, useMemo, useState} from "react";
 import {
@@ -14,6 +14,7 @@ import {
   TriangleExclamation,
 } from "@gravity-ui/icons";
 import {Button, Card, Chip, ScrollShadow} from "@heroui/react";
+import {Kanban} from "@heroui-pro/react";
 
 type FormState = {
   error?: string;
@@ -35,6 +36,14 @@ const taskTemplates = {
   refactor: "Refatore o trecho abaixo mantendo comportamento, melhorando legibilidade e rodando validacoes.",
   docs: "Atualize documentacao abaixo com exemplos claros, comandos de uso e riscos conhecidos.",
 };
+const taskColumns: Array<{color: string; label: string; status: TaskStatus}> = [
+  {color: "bg-default", label: "Queued", status: "queued"},
+  {color: "bg-warning", label: "Running", status: "running"},
+  {color: "bg-danger", label: "Blocked", status: "blocked"},
+  {color: "bg-danger", label: "Failed", status: "failed"},
+  {color: "bg-accent", label: "Review", status: "review"},
+  {color: "bg-success", label: "Done", status: "completed"},
+];
 
 async function postJson(url: string, payload: unknown) {
   const token = typeof window === "undefined" ? "" : localStorage.getItem("ralph_admin_token");
@@ -116,6 +125,50 @@ function Summary({snapshot}: {snapshot: DashboardSnapshot}) {
   );
 }
 
+function TaskKanbanCard({
+  onAction,
+  projectName,
+  task,
+}: {
+  onAction: (taskId: string, action: "cancel" | "retry" | "complete-review") => void;
+  projectName: string;
+  task: Task;
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="min-w-0">
+        <p className="line-clamp-2 text-sm font-semibold">{task.title}</p>
+        <p className="truncate text-xs text-muted">{projectName}</p>
+      </div>
+      <p className="line-clamp-3 text-xs leading-5 text-muted">{task.prompt}</p>
+      <div className="flex flex-wrap gap-1.5">
+        <Chip size="sm" variant="secondary">
+          <Chip.Label>{task.provider}</Chip.Label>
+        </Chip>
+        {task.branchName ? (
+          <Chip size="sm" variant="secondary">
+            <Chip.Label>{task.branchName}</Chip.Label>
+          </Chip>
+        ) : null}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" variant="outline" onPress={() => onAction(task.id, "retry")}>
+          <ArrowRotateLeft />
+          Retry
+        </Button>
+        <Button size="sm" variant="outline" onPress={() => onAction(task.id, "complete-review")}>
+          <CircleCheck />
+          OK
+        </Button>
+        <Button size="sm" variant="danger-soft" onPress={() => onAction(task.id, "cancel")}>
+          <OctagonXmark />
+          Cancelar
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function OrchestratorDashboard({initialSnapshot}: {initialSnapshot: DashboardSnapshot}) {
   const [snapshot, setSnapshot] = useState(initialSnapshot);
   const [auth, setAuth] = useState<AuthState>({
@@ -125,6 +178,7 @@ export function OrchestratorDashboard({initialSnapshot}: {initialSnapshot: Dashb
   });
   const [projectState, setProjectState] = useState<FormState>({});
   const [taskState, setTaskState] = useState<FormState>({});
+  const [chatState, setChatState] = useState<FormState>({});
   const [gitState, setGitState] = useState<FormState>({});
   const activeProjects = useMemo(
     () => snapshot.projects.filter((project) => project.status === "active"),
@@ -205,6 +259,25 @@ export function OrchestratorDashboard({initialSnapshot}: {initialSnapshot: Dashb
       await refresh();
     } catch (error) {
       setTaskState({error: error instanceof Error ? error.message : "Erro desconhecido."});
+    }
+  }
+
+  async function createChatCommand(formData: FormData) {
+    setChatState({});
+    try {
+      const projectId = String(formData.get("projectId") ?? "");
+      const prompt = String(formData.get("message") ?? "").trim();
+      if (!prompt) throw new Error("Mensagem obrigatoria.");
+      await postJson("/api/orchestrator/tasks", {
+        projectId,
+        title: prompt.slice(0, 80),
+        prompt: `Comando enviado pelo chat operacional:\n\n${prompt}`,
+        provider: formData.get("provider") as AgentProvider,
+      });
+      setChatState({ok: "Comando enviado para fila."});
+      await refresh();
+    } catch (error) {
+      setChatState({error: error instanceof Error ? error.message : "Erro desconhecido."});
     }
   }
 
@@ -354,6 +427,62 @@ export function OrchestratorDashboard({initialSnapshot}: {initialSnapshot: Dashb
                 </form>
               </Card.Content>
             </Card>
+
+            <Card>
+              <Card.Header>
+                <Card.Title>Chat Operacional</Card.Title>
+                <Card.Description>Envie novo comando e acompanhe respostas pelo log.</Card.Description>
+              </Card.Header>
+              <Card.Content>
+                <form action={createChatCommand} className="flex flex-col gap-3">
+                  <select className={inputClass} name="projectId" defaultValue={activeProjects[0]?.id ?? ""}>
+                    <option value="" disabled>
+                      Escolha projeto
+                    </option>
+                    {activeProjects.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.name}
+                      </option>
+                    ))}
+                  </select>
+                  <select className={inputClass} name="provider" defaultValue="codex">
+                    {snapshot.providers.map((provider) => (
+                      <option key={provider.provider} value={provider.provider}>
+                        {provider.label} {provider.enabled ? "" : "(dry/disabled)"}
+                      </option>
+                    ))}
+                  </select>
+                  <textarea
+                    className={`${inputClass} min-h-28 resize-none`}
+                    name="message"
+                    placeholder="Digite comando para agente"
+                  />
+                  {chatState.error ? <p className="text-sm text-danger">{chatState.error}</p> : null}
+                  {chatState.ok ? <p className="text-sm text-success">{chatState.ok}</p> : null}
+                  <Button isDisabled={auth.enabled && !auth.authorized} type="submit">
+                    <CirclePlay />
+                    Enviar Comando
+                  </Button>
+                </form>
+                <div className="mt-4 flex flex-col gap-2">
+                  {recentLogs.slice(0, 5).map((log) => (
+                    <div key={log.id} className="rounded-2xl bg-surface-secondary p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <Chip
+                          color={log.level === "error" ? "danger" : log.level === "warn" ? "warning" : "default"}
+                          size="sm"
+                          variant="soft"
+                        >
+                          <Chip.Label>{log.level}</Chip.Label>
+                        </Chip>
+                        <span className="text-xs text-muted">{log.createdAt}</span>
+                      </div>
+                      <p className="mt-2 text-xs leading-5 text-muted">{log.message}</p>
+                    </div>
+                  ))}
+                </div>
+              </Card.Content>
+            </Card>
           </div>
         </ScrollShadow>
 
@@ -396,68 +525,50 @@ export function OrchestratorDashboard({initialSnapshot}: {initialSnapshot: Dashb
             </Card.Content>
           </Card>
 
-          <Card className="min-h-0">
+          <Card className="min-h-0 lg:col-span-2">
             <Card.Header>
-              <Card.Title>Fila de Tasks</Card.Title>
-              <Card.Description>{snapshot.tasks.length} tasks</Card.Description>
+              <Card.Title>Kanban de Tasks</Card.Title>
+              <Card.Description>{snapshot.tasks.length} tasks por status</Card.Description>
             </Card.Header>
             <Card.Content className="min-h-0">
-              <ScrollShadow className="max-h-full overflow-y-auto">
-                <div className="flex flex-col gap-3">
-                  {snapshot.tasks.map((task) => {
-                    const project = snapshot.projects.find((item) => item.id === task.projectId);
-                    return (
-                      <div key={task.id} className="rounded-2xl bg-surface-secondary p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold">{task.title}</p>
-                            <p className="truncate text-xs text-muted">
-                              {project?.name ?? task.projectId}
-                            </p>
-                          </div>
-                          <StatusChip status={task.status} />
-                        </div>
-                        <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted">{task.prompt}</p>
-                        <div className="mt-2 flex flex-wrap items-center gap-2">
-                          <p className="text-xs text-muted">Provider: {task.provider}</p>
-                          {task.branchName ? (
-                            <Chip size="sm" variant="secondary">
-                              <Chip.Label>{task.branchName}</Chip.Label>
-                            </Chip>
-                          ) : null}
-                        </div>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <Button size="sm" variant="outline" onPress={() => taskAction(task.id, "retry")}>
-                            <ArrowRotateLeft />
-                            Retry
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onPress={() => taskAction(task.id, "complete-review")}
+              <Kanban hideScrollBar className="h-full min-h-[520px] items-start overflow-visible" isEnabled={false}>
+                {taskColumns.map((column) => {
+                  const items = snapshot.tasks.filter((task) => task.status === column.status);
+                  return (
+                    <Kanban.Column key={column.status} className="h-full min-w-72">
+                      <Kanban.ColumnHeader>
+                        <Kanban.ColumnIndicator className={column.color} />
+                        <Kanban.ColumnTitle>{column.label}</Kanban.ColumnTitle>
+                        <Kanban.ColumnCount>{items.length}</Kanban.ColumnCount>
+                      </Kanban.ColumnHeader>
+                      <Kanban.ColumnBody className="min-h-0">
+                        <Kanban.ScrollShadow className="max-h-[460px]">
+                          <Kanban.CardList
+                            aria-label={column.label}
+                            items={items}
+                            renderEmptyState={() => (
+                              <p className="p-3 text-sm text-muted">Sem tasks.</p>
+                            )}
                           >
-                            <CircleCheck />
-                            Review OK
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="danger-soft"
-                            onPress={() => taskAction(task.id, "cancel")}
-                          >
-                            <OctagonXmark />
-                            Cancelar
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {snapshot.tasks.length === 0 ? (
-                    <p className="rounded-2xl bg-surface-secondary p-4 text-sm text-muted">
-                      Fila vazia.
-                    </p>
-                  ) : null}
-                </div>
-              </ScrollShadow>
+                            {(task: Task) => {
+                              const project = snapshot.projects.find((item) => item.id === task.projectId);
+                              return (
+                                <Kanban.Card id={task.id} textValue={task.title}>
+                                  <TaskKanbanCard
+                                    onAction={taskAction}
+                                    projectName={project?.name ?? task.projectId}
+                                    task={task}
+                                  />
+                                </Kanban.Card>
+                              );
+                            }}
+                          </Kanban.CardList>
+                        </Kanban.ScrollShadow>
+                      </Kanban.ColumnBody>
+                    </Kanban.Column>
+                  );
+                })}
+              </Kanban>
             </Card.Content>
           </Card>
 

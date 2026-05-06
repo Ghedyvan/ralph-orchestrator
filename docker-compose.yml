@@ -1,6 +1,9 @@
 services:
   web:
-    build: .
+    build:
+      context: .
+      args:
+        HEROUI_AUTH_TOKEN: ${HEROUI_AUTH_TOKEN:-}
     command: npm run start
     ports:
       - "3000:3000"
@@ -19,7 +22,10 @@ services:
     restart: unless-stopped
 
   worker:
-    build: .
+    build:
+      context: .
+      args:
+        HEROUI_AUTH_TOKEN: ${HEROUI_AUTH_TOKEN:-}
     command: npm run worker
     environment:
       NODE_ENV: production

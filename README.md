@@ -175,6 +175,22 @@ Modo Docker Compose:
 docker compose up -d --build
 ```
 
+## HeroUI Pro no Coolify
+
+HeroUI Pro baixa os componentes durante `npm ci`. Em deploy non-interactive, use o token de CI/CD:
+
+```text
+HEROUI_AUTH_TOKEN
+```
+
+No Coolify, adicione `HEROUI_AUTH_TOKEN` como variável/secret de build. Use o CI/CD Token da dashboard HeroUI Pro, não o Personal Token.
+
+Onde achar:
+
+- HeroUI Pro Dashboard → Overview ou Settings → CI/CD Token.
+
+Sem esse token, o pacote `@heroui-pro/react` instala só o stub e o build falha ao importar `@heroui-pro/react/css`, `Kanban` ou `KPI`.
+
 Services:
 
 - `web`: Next.js em `3000`;
