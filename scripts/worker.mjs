@@ -2,7 +2,7 @@
 
 import {randomUUID} from "node:crypto";
 import {execFile} from "node:child_process";
-import {mkdir, readFile, writeFile} from "node:fs/promises";
+import {access, mkdir, readFile, rm, writeFile} from "node:fs/promises";
 import path from "node:path";
 import {promisify} from "node:util";
 import {providerReady, routeProvider, runProvider} from "./providers.mjs";
@@ -109,6 +109,15 @@ async function runGit(args, cwd) {
   return `${stdout}${stderr}`.trim();
 }
 
+async function pathExists(targetPath) {
+  try {
+    await access(targetPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function sanitizeGitError(error) {
   const message = error instanceof Error ? error.message : String(error);
   const sanitized = GITHUB_TOKEN ? message.replaceAll(GITHUB_TOKEN, "[redacted]") : message;
@@ -165,8 +174,18 @@ async function prepareGitWorkspace(state, run, project, task, workspacePath, bra
   }
 
   await mkdir(workspacePath, {recursive: true});
+  if (await pathExists(path.join(repoPath, ".git"))) {
+    await runGit(["fetch", "--depth", "1", "origin", project.defaultBranch], repoPath);
+    await runGit(["checkout", project.defaultBranch], repoPath);
+    await runGit(["reset", "--hard", `origin/${project.defaultBranch}`], repoPath);
+  } else if (await pathExists(repoPath)) {
+    await rm(repoPath, {force: true, recursive: true});
+  }
+
   try {
-    await runGit(cloneArgs(project.repoUrl, repoPath, project.defaultBranch), ROOT);
+    if (!(await pathExists(repoPath))) {
+      await runGit(cloneArgs(project.repoUrl, repoPath, project.defaultBranch), ROOT);
+    }
   } catch (error) {
     if (isGitAuthFailure(error)) {
       throw new Error(`Clone Git falhou por autenticacao/acesso.${gitAuthHint(project.repoUrl)} ${sanitizeGitError(error)}`);
