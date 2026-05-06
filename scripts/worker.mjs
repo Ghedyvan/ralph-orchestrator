@@ -28,6 +28,7 @@ const ALLOWED_COMMANDS = (process.env.RALPH_ALLOWED_COMMANDS || "yarn lint,yarn 
   .split(",")
   .map((item) => item.trim())
   .filter(Boolean);
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || "";
 const execFileAsync = promisify(execFile);
 
 const now = () => new Date().toISOString();
@@ -103,6 +104,23 @@ async function runGit(args, cwd) {
   return `${stdout}${stderr}`.trim();
 }
 
+function sanitizeGitError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  const sanitized = GITHUB_TOKEN ? message.replaceAll(GITHUB_TOKEN, "[redacted]") : message;
+  return sanitized
+    .replace(/x-access-token:[^@\\s]+@/g, "x-access-token:[redacted]@")
+    .slice(0, 2000);
+}
+
+function cloneArgs(repoUrl, repoPath, branchName) {
+  const baseArgs = ["clone", "--depth", "1"];
+  if (branchName) baseArgs.push("--branch", branchName);
+  if (GITHUB_TOKEN && repoUrl.startsWith("https://github.com/")) {
+    baseArgs.push("-c", `http.https://github.com/.extraheader=Authorization: Bearer ${GITHUB_TOKEN}`);
+  }
+  return [...baseArgs, repoUrl, repoPath];
+}
+
 async function prepareGitWorkspace(state, run, project, task, workspacePath, branchName) {
   const repoPath = path.join(workspacePath, "repo");
   if (!GIT_ENABLED) {
@@ -112,9 +130,10 @@ async function prepareGitWorkspace(state, run, project, task, workspacePath, bra
 
   await mkdir(workspacePath, {recursive: true});
   try {
-    await runGit(["clone", "--depth", "1", "--branch", project.defaultBranch, project.repoUrl, repoPath], ROOT);
-  } catch {
-    await runGit(["clone", "--depth", "1", project.repoUrl, repoPath], ROOT);
+    await runGit(cloneArgs(project.repoUrl, repoPath, project.defaultBranch), ROOT);
+  } catch (error) {
+    addLog(state, run.id, "warn", `Clone com branch ${project.defaultBranch} falhou; tentando clone default. ${sanitizeGitError(error)}`);
+    await runGit(cloneArgs(project.repoUrl, repoPath), ROOT);
     await runGit(["checkout", project.defaultBranch], repoPath);
   }
   await runGit(["checkout", "-B", branchName], repoPath);
@@ -203,7 +222,19 @@ async function processOne() {
   }
   await writeState(state);
   await writeWorkspaceFiles(workspacePath, project, task, run);
-  const gitResult = await prepareGitWorkspace(state, run, project, task, workspacePath, branchName);
+  let gitResult;
+  try {
+    gitResult = await prepareGitWorkspace(state, run, project, task, workspacePath, branchName);
+  } catch (error) {
+    task.status = "blocked";
+    task.updatedAt = now();
+    run.status = "failed";
+    run.finishedAt = now();
+    run.summary = `Falha ao preparar Git workspace. ${sanitizeGitError(error)}`;
+    addLog(state, run.id, "error", run.summary);
+    await writeState(state);
+    return true;
+  }
   await writeState(state);
 
   const fresh = await readState();

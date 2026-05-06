@@ -145,6 +145,22 @@ DEEPSEEK_MODEL=deepseek-chat
 
 Chaves ficam somente em env vars.
 
+## Git Clone Privado
+
+Repos publicos clonam sem token. Para repos privados no GitHub, configure no worker:
+
+```text
+GITHUB_TOKEN=github_pat_...
+```
+
+ou:
+
+```text
+GH_TOKEN=github_pat_...
+```
+
+Permissao minima: acesso de leitura ao repo para clone. Para push/PR, token precisa permissao de escrita no repo.
+
 ## Git Write e PR
 
 Default seguro:

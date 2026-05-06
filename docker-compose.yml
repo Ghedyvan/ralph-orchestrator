@@ -57,6 +57,8 @@ services:
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       DEEPSEEK_API_URL: ${DEEPSEEK_API_URL:-}
       DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GH_TOKEN: ${GH_TOKEN:-}
     volumes:
       - ralph-data:/app/data
     restart: unless-stopped
