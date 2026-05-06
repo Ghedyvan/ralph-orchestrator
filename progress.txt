@@ -201,3 +201,4 @@
 - S038 bloqueada: validacao Git no worker novo ainda retorna `auth_required`, porque `GITHUB_TOKEN`, `GH_TOKEN` e `RALPH_GITHUB_TOKEN` estao vazios/ausentes. Sem token com acesso de leitura ao repo privado, clone nao pode passar.
 - Validacoes remotas: container novo verificado, codigo corrigido presente, web healthy, worker em health starting apos redeploy.
 - Proximo passo: configurar em Coolify, no app/servico worker, `RALPH_GITHUB_TOKEN` ou `GITHUB_TOKEN` com permissao de leitura para `Ghedyvan/inertial-eclipse`, depois redeploy/retry da task.
+- S039 bloqueada: healthcheck correto para worker foi commitado em `6f9e814`, mas Coolify nao redeployou durante a janela de espera. Worker remoto segue vivo, porem `unhealthy` por healthcheck antigo herdado do Dockerfile. Nao foi editado docker-compose gerado na VPS porque contem secrets inline.

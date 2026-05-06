@@ -2,7 +2,7 @@
   "project": "ralph-kanban",
   "version": "1.0.0",
   "createdAt": "2026-05-06T03:27:02.908Z",
-  "updatedAt": "2026-05-06T19:02:08.511Z",
+  "updatedAt": "2026-05-06T19:04:41.929Z",
   "activeRequest": {
     "id": "R008",
     "text": "Continuar R007: acessar VPS via ssh administrator@93.127.142.13, aplicar correção de clone Git no worker Docker e validar sem expor secrets.",
@@ -639,10 +639,10 @@
         "Worker remoto deixa de ficar unhealthy por healthcheck HTTP incorreto apos redeploy.",
         "Validacoes locais passam."
       ],
-      "status": "in_progress",
+      "status": "blocked",
       "passes": false,
-      "notes": "Worker remoto esta vivo, mas unhealthy por healthcheck HTTP herdado do Dockerfile; ajustando compose.",
-      "updatedAt": "2026-05-06T19:02:08.511Z"
+      "notes": "Worker remoto esta vivo, mas unhealthy por healthcheck HTTP herdado do Dockerfile; ajustando compose.\nHealthcheck correto foi commitado e enviado em 6f9e814, mas Coolify nao redeployou durante a janela de espera. Nao editei docker-compose gerado na VPS porque contem secrets inline. Worker segue vivo, porem unhealthy por healthcheck antigo ate novo redeploy.",
+      "updatedAt": "2026-05-06T19:04:41.929Z"
     }
   ]
 }
