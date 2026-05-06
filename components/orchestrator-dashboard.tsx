@@ -1,7 +1,9 @@
 "use client";
 
-import type {AgentProvider, DashboardSnapshot, Task, TaskStatus} from "@/lib/orchestrator/types";
+import type {AgentProvider, DashboardSnapshot, Run, Task, TaskStatus} from "@/lib/orchestrator/types";
 
+import Link from "next/link";
+import {usePathname} from "next/navigation";
 import {useEffect, useMemo, useState} from "react";
 import {
   ArrowRotateLeft,
@@ -13,8 +15,10 @@ import {
   OctagonXmark,
   TriangleExclamation,
 } from "@gravity-ui/icons";
-import {Button, Card, Chip, ScrollShadow} from "@heroui/react";
+import {Button, Card, Chip, Modal, ScrollShadow, useOverlayState} from "@heroui/react";
 import {Kanban} from "@heroui-pro/react";
+
+type OrchestratorView = "overview" | "kanban" | "projects" | "tasks" | "runs";
 
 type FormState = {
   error?: string;
@@ -30,12 +34,14 @@ type AuthState = {
 
 const inputClass =
   "min-h-10 rounded-xl bg-surface-secondary px-3 py-2 text-sm text-foreground outline-none ring-1 ring-border focus:ring-2 focus:ring-accent";
+
 const taskTemplates = {
   bug: "Corrija o bug abaixo. Reproduza, implemente menor fix seguro, rode validacoes e documente risco.",
   feature: "Implemente a funcionalidade abaixo em etapas pequenas, com validacoes e sem alterar escopo nao relacionado.",
   refactor: "Refatore o trecho abaixo mantendo comportamento, melhorando legibilidade e rodando validacoes.",
   docs: "Atualize documentacao abaixo com exemplos claros, comandos de uso e riscos conhecidos.",
 };
+
 const taskColumns: Array<{color: string; label: string; status: TaskStatus}> = [
   {color: "bg-default", label: "Queued", status: "queued"},
   {color: "bg-warning", label: "Running", status: "running"},
@@ -43,6 +49,14 @@ const taskColumns: Array<{color: string; label: string; status: TaskStatus}> = [
   {color: "bg-danger", label: "Failed", status: "failed"},
   {color: "bg-accent", label: "Review", status: "review"},
   {color: "bg-success", label: "Done", status: "completed"},
+];
+
+const navItems: Array<{href: string; label: string; view: OrchestratorView}> = [
+  {href: "/", label: "Visao Geral", view: "overview"},
+  {href: "/kanban", label: "Kanban", view: "kanban"},
+  {href: "/projects", label: "Projetos", view: "projects"},
+  {href: "/tasks", label: "Tasks", view: "tasks"},
+  {href: "/runs", label: "Runs", view: "runs"},
 ];
 
 async function postJson(url: string, payload: unknown) {
@@ -79,9 +93,9 @@ function StatusChip({status}: {status: string}) {
   const color =
     status === "completed" || status === "active"
       ? "success"
-      : status === "failed" || status === "blocked"
+      : status === "failed" || status === "blocked" || status === "cancelled"
         ? "danger"
-        : status === "running"
+        : status === "running" || status === "review"
           ? "warning"
           : "default";
 
@@ -125,17 +139,330 @@ function Summary({snapshot}: {snapshot: DashboardSnapshot}) {
   );
 }
 
-function TaskKanbanCard({
+function PageHeader({
+  description,
+  title,
+}: {
+  description: string;
+  title: string;
+}) {
+  return (
+    <header className="shrink-0">
+      <p className="text-sm text-muted">Ralph Orchestrator</p>
+      <h1 className="text-2xl font-semibold tracking-normal sm:text-3xl">{title}</h1>
+      <p className="mt-1 line-clamp-2 max-w-5xl text-sm text-muted">{description}</p>
+    </header>
+  );
+}
+
+function Sidebar({view}: {view: OrchestratorView}) {
+  const pathname = usePathname();
+
+  return (
+    <aside className="flex shrink-0 flex-col gap-4 border-b border-border pb-4 lg:w-64 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-4">
+      <div>
+        <p className="text-sm text-muted">Ralph</p>
+        <p className="text-lg font-semibold">Orquestrador</p>
+      </div>
+      <nav className="flex gap-2 overflow-x-auto lg:flex-col lg:overflow-visible">
+        {navItems.map((item) => {
+          const active = view === item.view || pathname === item.href;
+          return (
+            <Link key={item.href} className="no-underline" href={item.href}>
+              <Button className="w-full justify-start whitespace-nowrap" variant={active ? "primary" : "outline"}>
+                {item.label}
+              </Button>
+            </Link>
+          );
+        })}
+      </nav>
+    </aside>
+  );
+}
+
+function ProjectForm({
+  activeProjects,
+  auth,
+  createProject,
+  projectState,
+  snapshot,
+}: {
+  activeProjects: DashboardSnapshot["projects"];
+  auth: AuthState;
+  createProject: (formData: FormData) => void;
+  projectState: FormState;
+  snapshot: DashboardSnapshot;
+}) {
+  return (
+    <Card>
+      <Card.Header>
+        <Card.Title>Novo Projeto</Card.Title>
+        <Card.Description>{activeProjects.length} projetos ativos</Card.Description>
+      </Card.Header>
+      <Card.Content>
+        <form action={createProject} className="flex flex-col gap-3">
+          <input className={inputClass} name="name" placeholder="Nome" />
+          <input className={inputClass} name="repoUrl" placeholder="Git URL ou caminho" />
+          <input className={inputClass} name="defaultBranch" placeholder="Branch: main" />
+          <input className={inputClass} name="localPath" placeholder="Path local opcional" />
+          <select className={inputClass} name="defaultProvider" defaultValue="manual">
+            {snapshot.providers.map((provider) => (
+              <option key={provider.provider} value={provider.provider}>
+                Provider padrao: {provider.label}
+              </option>
+            ))}
+          </select>
+          <select className={inputClass} name="autonomyLevel" defaultValue="medium">
+            <option value="low">Autonomia baixa</option>
+            <option value="medium">Autonomia media</option>
+            <option value="high">Autonomia alta</option>
+          </select>
+          <textarea
+            className={`${inputClass} min-h-20 resize-none`}
+            name="validationCommands"
+            placeholder={"yarn lint\nyarn typecheck\nyarn build"}
+          />
+          {projectState.error ? <p className="text-sm text-danger">{projectState.error}</p> : null}
+          {projectState.ok ? <p className="text-sm text-success">{projectState.ok}</p> : null}
+          <Button isDisabled={auth.enabled && !auth.authorized} type="submit">
+            <CirclePlus />
+            Criar Projeto
+          </Button>
+        </form>
+      </Card.Content>
+    </Card>
+  );
+}
+
+function TaskForm({
+  activeProjects,
+  auth,
+  createTask,
+  snapshot,
+  taskState,
+}: {
+  activeProjects: DashboardSnapshot["projects"];
+  auth: AuthState;
+  createTask: (formData: FormData) => void;
+  snapshot: DashboardSnapshot;
+  taskState: FormState;
+}) {
+  return (
+    <Card>
+      <Card.Header>
+        <Card.Title>Nova Task</Card.Title>
+        <Card.Description>Entra na fila do worker 24/7.</Card.Description>
+      </Card.Header>
+      <Card.Content>
+        <form action={createTask} className="flex flex-col gap-3">
+          <select className={inputClass} name="projectId" defaultValue="">
+            <option value="" disabled>
+              Escolha projeto
+            </option>
+            {activeProjects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+          <select className={inputClass} name="provider" defaultValue="manual">
+            {snapshot.providers.map((provider) => (
+              <option key={provider.provider} value={provider.provider}>
+                {provider.label} {provider.enabled ? "" : "(dry/disabled)"}
+              </option>
+            ))}
+          </select>
+          <select className={inputClass} name="template" defaultValue="feature">
+            <option value="bug">Template: bug</option>
+            <option value="feature">Template: feature</option>
+            <option value="refactor">Template: refactor</option>
+            <option value="docs">Template: docs</option>
+          </select>
+          <input className={inputClass} name="title" placeholder="Titulo curto" />
+          <textarea
+            className={`${inputClass} min-h-32 resize-none`}
+            name="prompt"
+            placeholder="Descreva atividade para delegar"
+          />
+          {taskState.error ? <p className="text-sm text-danger">{taskState.error}</p> : null}
+          {taskState.ok ? <p className="text-sm text-success">{taskState.ok}</p> : null}
+          <Button isDisabled={auth.enabled && !auth.authorized} type="submit">
+            <CirclePlay />
+            Delegar Task
+          </Button>
+        </form>
+      </Card.Content>
+    </Card>
+  );
+}
+
+function ProjectsList({snapshot}: {snapshot: DashboardSnapshot}) {
+  return (
+    <Card className="min-h-0">
+      <Card.Header>
+        <Card.Title>Projetos</Card.Title>
+        <Card.Description>{snapshot.projects.length} cadastrados</Card.Description>
+      </Card.Header>
+      <Card.Content className="min-h-0">
+        <ScrollShadow className="max-h-full overflow-y-auto">
+          <div className="grid gap-3 xl:grid-cols-2">
+            {snapshot.projects.map((project) => (
+              <div key={project.id} className="rounded-2xl bg-surface-secondary p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold">{project.name}</p>
+                    <p className="truncate text-xs text-muted">{project.repoUrl}</p>
+                  </div>
+                  <StatusChip status={project.status} />
+                </div>
+                <p className="mt-2 text-xs text-muted">Branch: {project.defaultBranch}</p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <Chip size="sm" variant="secondary">
+                    <Chip.Label>{project.defaultProvider ?? "manual"}</Chip.Label>
+                  </Chip>
+                  <Chip size="sm" variant="secondary">
+                    <Chip.Label>{project.autonomyLevel ?? "medium"}</Chip.Label>
+                  </Chip>
+                </div>
+              </div>
+            ))}
+            {snapshot.projects.length === 0 ? (
+              <p className="rounded-2xl bg-surface-secondary p-4 text-sm text-muted">Nenhum projeto ainda.</p>
+            ) : null}
+          </div>
+        </ScrollShadow>
+      </Card.Content>
+    </Card>
+  );
+}
+
+function TaskDetailModal({
   onAction,
+  onClose,
   projectName,
+  runs,
   task,
 }: {
   onAction: (taskId: string, action: "cancel" | "retry" | "complete-review") => void;
+  onClose: () => void;
+  projectName: string;
+  runs: Run[];
+  task: Task | null;
+}) {
+  const state = useOverlayState({isOpen: Boolean(task), onOpenChange: (open) => !open && onClose()});
+  const taskRuns = task ? runs.filter((run) => run.taskId === task.id) : [];
+
+  if (!task) return null;
+
+  return (
+    <Modal state={state}>
+      <Modal.Backdrop />
+      <Modal.Container placement="center" scroll="inside" size="lg">
+        <Modal.Dialog>
+          <Modal.Header>
+            <div className="flex min-w-0 flex-col gap-2">
+              <Modal.Heading>{task.title}</Modal.Heading>
+              <div className="flex flex-wrap gap-2">
+                <StatusChip status={task.status} />
+                <Chip size="sm" variant="secondary">
+                  <Chip.Label>{projectName}</Chip.Label>
+                </Chip>
+                <Chip size="sm" variant="secondary">
+                  <Chip.Label>{task.provider}</Chip.Label>
+                </Chip>
+              </div>
+            </div>
+            <Modal.CloseTrigger />
+          </Modal.Header>
+          <Modal.Body>
+            <div className="grid gap-4">
+              <section>
+                <p className="text-sm font-semibold">Prompt</p>
+                <pre className="mt-2 max-h-56 overflow-auto rounded-2xl bg-surface-secondary p-4 whitespace-pre-wrap text-sm leading-6 text-muted">
+                  {task.prompt}
+                </pre>
+              </section>
+              <section className="grid gap-2 sm:grid-cols-2">
+                <div className="rounded-2xl bg-surface-secondary p-4">
+                  <p className="text-xs text-muted">Criada</p>
+                  <p className="mt-1 text-sm">{task.createdAt}</p>
+                </div>
+                <div className="rounded-2xl bg-surface-secondary p-4">
+                  <p className="text-xs text-muted">Atualizada</p>
+                  <p className="mt-1 text-sm">{task.updatedAt}</p>
+                </div>
+                <div className="rounded-2xl bg-surface-secondary p-4">
+                  <p className="text-xs text-muted">Branch</p>
+                  <p className="mt-1 break-all text-sm">{task.branchName ?? "nao criada"}</p>
+                </div>
+                <div className="rounded-2xl bg-surface-secondary p-4">
+                  <p className="text-xs text-muted">Workspace</p>
+                  <p className="mt-1 break-all text-sm">{task.workspacePath ?? "nao iniciado"}</p>
+                </div>
+              </section>
+              <section>
+                <p className="text-sm font-semibold">Runs</p>
+                <div className="mt-2 grid gap-2">
+                  {taskRuns.map((run) => (
+                    <div key={run.id} className="rounded-2xl bg-surface-secondary p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold">{run.id}</p>
+                          <p className="truncate text-xs text-muted">{run.workspacePath}</p>
+                        </div>
+                        <StatusChip status={run.status} />
+                      </div>
+                      {run.summary ? <p className="mt-2 text-xs leading-5 text-muted">{run.summary}</p> : null}
+                    </div>
+                  ))}
+                  {taskRuns.length === 0 ? (
+                    <p className="rounded-2xl bg-surface-secondary p-4 text-sm text-muted">Sem runs ainda.</p>
+                  ) : null}
+                </div>
+              </section>
+            </div>
+          </Modal.Body>
+          <Modal.Footer>
+            {(task.status === "failed" || task.status === "blocked" || task.status === "cancelled") ? (
+              <Button onPress={() => onAction(task.id, "retry")}>
+                <ArrowRotateLeft />
+                Retry
+              </Button>
+            ) : null}
+            {task.status === "review" ? (
+              <Button onPress={() => onAction(task.id, "complete-review")}>
+                <CircleCheck />
+                Marcar Done
+              </Button>
+            ) : null}
+            {task.status !== "completed" && task.status !== "cancelled" ? (
+              <Button variant="danger-soft" onPress={() => onAction(task.id, "cancel")}>
+                <OctagonXmark />
+                Cancelar
+              </Button>
+            ) : null}
+          </Modal.Footer>
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal>
+  );
+}
+
+function TaskKanbanCard({
+  onOpen,
+  projectName,
+  task,
+}: {
+  onOpen: (task: Task) => void;
   projectName: string;
   task: Task;
 }) {
   return (
-    <div className="flex flex-col gap-3">
+    <button
+      className="flex w-full flex-col gap-3 text-left outline-none"
+      type="button"
+      onClick={() => onOpen(task)}
+    >
       <div className="min-w-0">
         <p className="line-clamp-2 text-sm font-semibold">{task.title}</p>
         <p className="truncate text-xs text-muted">{projectName}</p>
@@ -151,52 +478,272 @@ function TaskKanbanCard({
           </Chip>
         ) : null}
       </div>
-      <div className="flex flex-wrap gap-2">
-        <Button size="sm" variant="outline" onPress={() => onAction(task.id, "retry")}>
-          <ArrowRotateLeft />
-          Retry
-        </Button>
-        <Button size="sm" variant="outline" onPress={() => onAction(task.id, "complete-review")}>
-          <CircleCheck />
-          OK
-        </Button>
-        <Button size="sm" variant="danger-soft" onPress={() => onAction(task.id, "cancel")}>
-          <OctagonXmark />
-          Cancelar
-        </Button>
-      </div>
-    </div>
+    </button>
   );
 }
 
-export function OrchestratorDashboard({initialSnapshot}: {initialSnapshot: DashboardSnapshot}) {
+function KanbanBoard({
+  onAction,
+  onOpenTask,
+  snapshot,
+}: {
+  onAction: (taskId: string, action: "cancel" | "retry" | "complete-review") => void;
+  onOpenTask: (task: Task) => void;
+  snapshot: DashboardSnapshot;
+}) {
+  return (
+    <Card className="min-h-0 flex-1">
+      <Card.Header>
+        <Card.Title>Kanban de Tasks</Card.Title>
+        <Card.Description>{snapshot.tasks.length} tasks por status</Card.Description>
+      </Card.Header>
+      <Card.Content className="min-h-0">
+        <Kanban hideScrollBar className="h-full min-h-[640px] items-start overflow-visible" isEnabled={false}>
+          {taskColumns.map((column) => {
+            const items = snapshot.tasks.filter((task) => task.status === column.status);
+            return (
+              <Kanban.Column key={column.status} className="h-full min-w-72">
+                <Kanban.ColumnHeader>
+                  <Kanban.ColumnIndicator className={column.color} />
+                  <Kanban.ColumnTitle>{column.label}</Kanban.ColumnTitle>
+                  <Kanban.ColumnCount>{items.length}</Kanban.ColumnCount>
+                </Kanban.ColumnHeader>
+                <Kanban.ColumnBody className="min-h-0">
+                  <Kanban.ScrollShadow className="max-h-[560px]">
+                    <Kanban.CardList
+                      aria-label={column.label}
+                      items={items}
+                      renderEmptyState={() => <p className="p-3 text-sm text-muted">Sem tasks.</p>}
+                    >
+                      {(task: Task) => {
+                        const project = snapshot.projects.find((item) => item.id === task.projectId);
+                        return (
+                          <Kanban.Card id={task.id} textValue={task.title}>
+                            <TaskKanbanCard
+                              onOpen={onOpenTask}
+                              projectName={project?.name ?? task.projectId}
+                              task={task}
+                            />
+                            {(task.status === "failed" || task.status === "blocked") ? (
+                              <Button className="mt-3 w-full" size="sm" variant="outline" onPress={() => onAction(task.id, "retry")}>
+                                <ArrowRotateLeft />
+                                Retry
+                              </Button>
+                            ) : null}
+                          </Kanban.Card>
+                        );
+                      }}
+                    </Kanban.CardList>
+                  </Kanban.ScrollShadow>
+                </Kanban.ColumnBody>
+              </Kanban.Column>
+            );
+          })}
+        </Kanban>
+      </Card.Content>
+    </Card>
+  );
+}
+
+function ChatPanel({
+  activeProjects,
+  auth,
+  chatState,
+  createChatCommand,
+  recentLogs,
+  snapshot,
+}: {
+  activeProjects: DashboardSnapshot["projects"];
+  auth: AuthState;
+  chatState: FormState;
+  createChatCommand: (formData: FormData) => void;
+  recentLogs: DashboardSnapshot["logs"];
+  snapshot: DashboardSnapshot;
+}) {
+  return (
+    <Card>
+      <Card.Header>
+        <Card.Title>Chat Operacional</Card.Title>
+        <Card.Description>Novo comando vira task rastreavel.</Card.Description>
+      </Card.Header>
+      <Card.Content>
+        <form action={createChatCommand} className="flex flex-col gap-3">
+          <select className={inputClass} name="projectId" defaultValue={activeProjects[0]?.id ?? ""}>
+            <option value="" disabled>
+              Escolha projeto
+            </option>
+            {activeProjects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+          <select className={inputClass} name="provider" defaultValue="codex">
+            {snapshot.providers.map((provider) => (
+              <option key={provider.provider} value={provider.provider}>
+                {provider.label} {provider.enabled ? "" : "(dry/disabled)"}
+              </option>
+            ))}
+          </select>
+          <textarea className={`${inputClass} min-h-28 resize-none`} name="message" placeholder="Digite comando" />
+          {chatState.error ? <p className="text-sm text-danger">{chatState.error}</p> : null}
+          {chatState.ok ? <p className="text-sm text-success">{chatState.ok}</p> : null}
+          <Button isDisabled={auth.enabled && !auth.authorized} type="submit">
+            <CirclePlay />
+            Enviar Comando
+          </Button>
+        </form>
+        <div className="mt-4 flex flex-col gap-2">
+          {recentLogs.slice(0, 5).map((log) => (
+            <div key={log.id} className="rounded-2xl bg-surface-secondary p-3">
+              <div className="flex items-center justify-between gap-2">
+                <Chip color={log.level === "error" ? "danger" : log.level === "warn" ? "warning" : "default"} size="sm" variant="soft">
+                  <Chip.Label>{log.level}</Chip.Label>
+                </Chip>
+                <span className="text-xs text-muted">{log.createdAt}</span>
+              </div>
+              <p className="mt-2 text-xs leading-5 text-muted">{log.message}</p>
+            </div>
+          ))}
+        </div>
+      </Card.Content>
+    </Card>
+  );
+}
+
+function RunsPanel({
+  gitAction,
+  gitState,
+  recentLogs,
+  revalidateRun,
+  snapshot,
+}: {
+  gitAction: (runId: string, action: "status" | "commit" | "push" | "pr") => void;
+  gitState: FormState;
+  recentLogs: DashboardSnapshot["logs"];
+  revalidateRun: (runId: string) => void;
+  snapshot: DashboardSnapshot;
+}) {
+  return (
+    <Card className="min-h-0">
+      <Card.Header>
+        <Card.Title>Runs e Logs</Card.Title>
+        <Card.Description>
+          {snapshot.runs.length} runs / {snapshot.logs.length} eventos
+        </Card.Description>
+      </Card.Header>
+      <Card.Content className="grid min-h-0 gap-4 lg:grid-cols-2">
+        <ScrollShadow className="max-h-[calc(100vh-260px)] overflow-y-auto">
+          <div className="flex flex-col gap-3">
+            {gitState.error ? <p className="rounded-2xl bg-danger/10 p-3 text-sm text-danger">{gitState.error}</p> : null}
+            {gitState.ok ? <p className="rounded-2xl bg-success/10 p-3 text-sm text-success">{gitState.ok}</p> : null}
+            {snapshot.runs.map((run) => {
+              const task = snapshot.tasks.find((item) => item.id === run.taskId);
+              return (
+                <div key={run.id} className="rounded-2xl bg-surface-secondary p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold">{task?.title ?? run.taskId}</p>
+                      <p className="truncate text-xs text-muted">{run.workspacePath}</p>
+                    </div>
+                    <StatusChip status={run.status} />
+                  </div>
+                  {run.summary ? <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted">{run.summary}</p> : null}
+                  {run.changedFiles?.length ? (
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {run.changedFiles.slice(0, 6).map((file) => (
+                        <Chip key={file} size="sm" variant="secondary">
+                          <Chip.Label>{file}</Chip.Label>
+                        </Chip>
+                      ))}
+                    </div>
+                  ) : null}
+                  {run.diffSummary ? (
+                    <pre className="mt-3 max-h-24 overflow-auto rounded-xl bg-background p-3 text-xs text-muted">
+                      {run.diffSummary}
+                    </pre>
+                  ) : null}
+                  {run.gitStatus ? (
+                    <pre className="mt-3 max-h-20 overflow-auto rounded-xl bg-background p-2 text-xs text-muted">
+                      {run.gitStatus}
+                    </pre>
+                  ) : null}
+                  {run.prUrl ? <a className="mt-3 block truncate text-xs text-accent no-underline" href={run.prUrl}>{run.prUrl}</a> : null}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button size="sm" variant="outline" onPress={() => revalidateRun(run.id)}>
+                      <ArrowRotateLeft />
+                      Revalidar
+                    </Button>
+                    <Button size="sm" variant="outline" onPress={() => gitAction(run.id, "status")}>
+                      <Gear />
+                      Git status
+                    </Button>
+                    <Button size="sm" variant="outline" onPress={() => gitAction(run.id, "commit")}>
+                      <CircleCheck />
+                      Commit
+                    </Button>
+                    <Button size="sm" variant="outline" onPress={() => gitAction(run.id, "push")}>
+                      <CirclePlay />
+                      Push
+                    </Button>
+                    <Button size="sm" variant="outline" onPress={() => gitAction(run.id, "pr")}>
+                      <CirclePlus />
+                      PR
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+            {snapshot.runs.length === 0 ? <p className="rounded-2xl bg-surface-secondary p-4 text-sm text-muted">Nenhum run ainda.</p> : null}
+          </div>
+        </ScrollShadow>
+        <ScrollShadow className="max-h-[calc(100vh-260px)] overflow-y-auto">
+          <div className="flex flex-col gap-2">
+            {recentLogs.map((log) => (
+              <div key={log.id} className="rounded-2xl bg-surface-secondary p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <Chip color={log.level === "error" ? "danger" : log.level === "warn" ? "warning" : "default"} size="sm" variant="soft">
+                    <Chip.Label>{log.level}</Chip.Label>
+                  </Chip>
+                  <span className="text-xs text-muted">{log.createdAt}</span>
+                </div>
+                <p className="mt-2 text-xs leading-5 text-muted">{log.message}</p>
+              </div>
+            ))}
+            {recentLogs.length === 0 ? <p className="rounded-2xl bg-surface-secondary p-4 text-sm text-muted">Nenhum log ainda.</p> : null}
+          </div>
+        </ScrollShadow>
+      </Card.Content>
+    </Card>
+  );
+}
+
+export function OrchestratorDashboard({
+  initialSnapshot,
+  view = "overview",
+}: {
+  initialSnapshot: DashboardSnapshot;
+  view?: OrchestratorView;
+}) {
   const [snapshot, setSnapshot] = useState(initialSnapshot);
-  const [auth, setAuth] = useState<AuthState>({
-    checked: false,
-    enabled: false,
-    authorized: false,
-  });
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [auth, setAuth] = useState<AuthState>({checked: false, enabled: false, authorized: false});
   const [projectState, setProjectState] = useState<FormState>({});
   const [taskState, setTaskState] = useState<FormState>({});
   const [chatState, setChatState] = useState<FormState>({});
   const [gitState, setGitState] = useState<FormState>({});
-  const activeProjects = useMemo(
-    () => snapshot.projects.filter((project) => project.status === "active"),
-    [snapshot.projects],
-  );
+  const activeProjects = useMemo(() => snapshot.projects.filter((project) => project.status === "active"), [snapshot.projects]);
+  const recentLogs = snapshot.logs.slice(-12).reverse();
+  const selectedProject = selectedTask ? snapshot.projects.find((project) => project.id === selectedTask.projectId) : null;
 
   useEffect(() => {
     const token = localStorage.getItem("ralph_admin_token");
-    fetch("/api/orchestrator/auth", {
-      headers: token ? {Authorization: `Bearer ${token}`} : {},
-    })
+    fetch("/api/orchestrator/auth", {headers: token ? {Authorization: `Bearer ${token}`} : {}})
       .then((response) => response.json())
       .then((body: {authorized: boolean; enabled: boolean}) =>
         setAuth({checked: true, enabled: body.enabled, authorized: body.authorized}),
       )
-      .catch(() =>
-        setAuth({checked: true, enabled: true, authorized: false, error: "Falha ao verificar auth."}),
-      );
+      .catch(() => setAuth({checked: true, enabled: true, authorized: false, error: "Falha ao verificar auth."}));
   }, []);
 
   useEffect(() => {
@@ -210,10 +757,7 @@ export function OrchestratorDashboard({initialSnapshot}: {initialSnapshot: Dashb
   async function login(formData: FormData) {
     const token = String(formData.get("token") ?? "");
     localStorage.setItem("ralph_admin_token", token);
-    const response = await fetch("/api/orchestrator/auth", {
-      method: "POST",
-      headers: {Authorization: `Bearer ${token}`},
-    });
+    const response = await fetch("/api/orchestrator/auth", {method: "POST", headers: {Authorization: `Bearer ${token}`}});
     if (!response.ok) {
       localStorage.removeItem("ralph_admin_token");
       setAuth({checked: true, enabled: true, authorized: false, error: "Token invalido."});
@@ -265,11 +809,10 @@ export function OrchestratorDashboard({initialSnapshot}: {initialSnapshot: Dashb
   async function createChatCommand(formData: FormData) {
     setChatState({});
     try {
-      const projectId = String(formData.get("projectId") ?? "");
       const prompt = String(formData.get("message") ?? "").trim();
       if (!prompt) throw new Error("Mensagem obrigatoria.");
       await postJson("/api/orchestrator/tasks", {
-        projectId,
+        projectId: String(formData.get("projectId") ?? ""),
         title: prompt.slice(0, 80),
         prompt: `Comando enviado pelo chat operacional:\n\n${prompt}`,
         provider: formData.get("provider") as AgentProvider,
@@ -283,6 +826,7 @@ export function OrchestratorDashboard({initialSnapshot}: {initialSnapshot: Dashb
 
   async function taskAction(taskId: string, action: "cancel" | "retry" | "complete-review") {
     await patchJson("/api/orchestrator/tasks", {taskId, action});
+    if (action === "retry") setSelectedTask(null);
     await refresh();
   }
 
@@ -305,11 +849,7 @@ export function OrchestratorDashboard({initialSnapshot}: {initialSnapshot: Dashb
     try {
       const run = snapshot.runs.find((item) => item.id === runId);
       const task = run ? snapshot.tasks.find((item) => item.id === run.taskId) : null;
-      await postJson("/api/orchestrator/git", {
-        action,
-        runId,
-        message: task ? `ralph: ${task.title}` : undefined,
-      });
+      await postJson("/api/orchestrator/git", {action, runId, message: task ? `ralph: ${task.title}` : undefined});
       setGitState({ok: `Git ${action} executado.`});
       await refresh();
     } catch (error) {
@@ -317,406 +857,155 @@ export function OrchestratorDashboard({initialSnapshot}: {initialSnapshot: Dashb
     }
   }
 
-  const recentLogs = snapshot.logs.slice(-8).reverse();
+  const headers: Record<OrchestratorView, {description: string; title: string}> = {
+    overview: {
+      title: "Delegacao 24/7",
+      description: "Cadastre repos, envie comandos e acompanhe sinais principais do worker.",
+    },
+    kanban: {
+      title: "Kanban",
+      description: "Veja tasks por status, abra detalhes e reenfileire falhas.",
+    },
+    projects: {
+      title: "Projetos",
+      description: "Gerencie repositorios e defaults de execucao.",
+    },
+    tasks: {
+      title: "Tasks",
+      description: "Delegue novas atividades e confira fila tabular.",
+    },
+    runs: {
+      title: "Runs",
+      description: "Acompanhe logs, diffs e acoes Git de cada execucao.",
+    },
+  };
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4">
-      {auth.checked && auth.enabled && !auth.authorized ? (
-        <Card className="shrink-0">
-          <Card.Header>
-            <Card.Title>Acesso Admin</Card.Title>
-            <Card.Description>Informe token configurado em `RALPH_ADMIN_TOKEN`.</Card.Description>
-          </Card.Header>
-          <Card.Content>
-            <form action={login} className="flex flex-col gap-3 sm:max-w-md">
-              <input className={inputClass} name="token" placeholder="Token admin" type="password" />
-              {auth.error ? <p className="text-sm text-danger">{auth.error}</p> : null}
-              <Button type="submit">Entrar</Button>
-            </form>
-          </Card.Content>
-        </Card>
-      ) : null}
+    <main className="h-screen overflow-hidden bg-background p-4 text-foreground sm:p-6">
+      <div className="flex h-full min-h-0 w-full flex-col gap-4 lg:flex-row">
+        <Sidebar view={view} />
+        <section className="flex min-h-0 flex-1 flex-col gap-4">
+          <PageHeader {...headers[view]} />
 
-      {auth.checked && auth.enabled && !auth.authorized ? null : (
-        <>
-      <Summary snapshot={snapshot} />
-
-      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[420px_1fr]">
-        <ScrollShadow className="min-h-0 overflow-y-auto pr-1">
-          <div className="flex flex-col gap-4">
-            <Card>
+          {auth.checked && auth.enabled && !auth.authorized ? (
+            <Card className="shrink-0">
               <Card.Header>
-                <Card.Title>Novo Projeto</Card.Title>
-                <Card.Description>Repo que worker usara como alvo.</Card.Description>
+                <Card.Title>Acesso Admin</Card.Title>
+                <Card.Description>Informe token configurado em RALPH_ADMIN_TOKEN.</Card.Description>
               </Card.Header>
               <Card.Content>
-                <form action={createProject} className="flex flex-col gap-3">
-                  <input className={inputClass} name="name" placeholder="Nome" />
-                  <input className={inputClass} name="repoUrl" placeholder="Git URL ou caminho" />
-                  <input className={inputClass} name="defaultBranch" placeholder="Branch: main" />
-                  <input className={inputClass} name="localPath" placeholder="Path local opcional" />
-                  <select className={inputClass} name="defaultProvider" defaultValue="manual">
-                    {snapshot.providers.map((provider) => (
-                      <option key={provider.provider} value={provider.provider}>
-                        Provider padrao: {provider.label}
-                      </option>
-                    ))}
-                  </select>
-                  <select className={inputClass} name="autonomyLevel" defaultValue="medium">
-                    <option value="low">Autonomia baixa</option>
-                    <option value="medium">Autonomia media</option>
-                    <option value="high">Autonomia alta</option>
-                  </select>
-                  <textarea
-                    className={`${inputClass} min-h-20 resize-none`}
-                    name="validationCommands"
-                    placeholder={"yarn lint\nyarn typecheck\nyarn build"}
-                  />
-                  {projectState.error ? <p className="text-sm text-danger">{projectState.error}</p> : null}
-                  {projectState.ok ? <p className="text-sm text-success">{projectState.ok}</p> : null}
-                  <Button isDisabled={auth.enabled && !auth.authorized} type="submit">
-                    <CirclePlus />
-                    Criar Projeto
-                  </Button>
+                <form action={login} className="flex flex-col gap-3 sm:max-w-md">
+                  <input className={inputClass} name="token" placeholder="Token admin" type="password" />
+                  {auth.error ? <p className="text-sm text-danger">{auth.error}</p> : null}
+                  <Button type="submit">Entrar</Button>
                 </form>
               </Card.Content>
             </Card>
+          ) : null}
 
-            <Card>
-              <Card.Header>
-                <Card.Title>Nova Task</Card.Title>
-                <Card.Description>Entra na fila do worker 24/7.</Card.Description>
-              </Card.Header>
-              <Card.Content>
-                <form action={createTask} className="flex flex-col gap-3">
-                  <select className={inputClass} name="projectId" defaultValue="">
-                    <option value="" disabled>
-                      Escolha projeto
-                    </option>
-                    {activeProjects.map((project) => (
-                      <option key={project.id} value={project.id}>
-                        {project.name}
-                      </option>
-                    ))}
-                  </select>
-                  <select className={inputClass} name="provider" defaultValue="manual">
-                    {snapshot.providers.map((provider) => (
-                      <option key={provider.provider} value={provider.provider}>
-                        {provider.label} {provider.enabled ? "" : "(dry/disabled)"}
-                      </option>
-                    ))}
-                  </select>
-                  <select className={inputClass} name="template" defaultValue="feature">
-                    <option value="bug">Template: bug</option>
-                    <option value="feature">Template: feature</option>
-                    <option value="refactor">Template: refactor</option>
-                    <option value="docs">Template: docs</option>
-                  </select>
-                  <input className={inputClass} name="title" placeholder="Titulo curto" />
-                  <textarea
-                    className={`${inputClass} min-h-32 resize-none`}
-                    name="prompt"
-                    placeholder="Descreva atividade para delegar"
+          {auth.checked && auth.enabled && !auth.authorized ? null : (
+            <div className="flex min-h-0 flex-1 flex-col gap-4">
+              {view === "overview" ? (
+                <>
+                  <Summary snapshot={snapshot} />
+                  <div className="grid min-h-0 gap-4 xl:grid-cols-[420px_1fr]">
+                    <ChatPanel
+                      activeProjects={activeProjects}
+                      auth={auth}
+                      chatState={chatState}
+                      createChatCommand={createChatCommand}
+                      recentLogs={recentLogs}
+                      snapshot={snapshot}
+                    />
+                    <div className="grid gap-4">
+                      <ProjectsList snapshot={{...snapshot, projects: snapshot.projects.slice(0, 4)}} />
+                      <KanbanBoard onAction={taskAction} onOpenTask={setSelectedTask} snapshot={{...snapshot, tasks: snapshot.tasks.slice(0, 12)}} />
+                    </div>
+                  </div>
+                </>
+              ) : null}
+
+              {view === "kanban" ? (
+                <KanbanBoard onAction={taskAction} onOpenTask={setSelectedTask} snapshot={snapshot} />
+              ) : null}
+
+              {view === "projects" ? (
+                <div className="grid min-h-0 gap-4 xl:grid-cols-[420px_1fr]">
+                  <ProjectForm
+                    activeProjects={activeProjects}
+                    auth={auth}
+                    createProject={createProject}
+                    projectState={projectState}
+                    snapshot={snapshot}
                   />
-                  {taskState.error ? <p className="text-sm text-danger">{taskState.error}</p> : null}
-                  {taskState.ok ? <p className="text-sm text-success">{taskState.ok}</p> : null}
-                  <Button isDisabled={auth.enabled && !auth.authorized} type="submit">
-                    <CirclePlay />
-                    Delegar Task
-                  </Button>
-                </form>
-              </Card.Content>
-            </Card>
+                  <ProjectsList snapshot={snapshot} />
+                </div>
+              ) : null}
 
-            <Card>
-              <Card.Header>
-                <Card.Title>Chat Operacional</Card.Title>
-                <Card.Description>Envie novo comando e acompanhe respostas pelo log.</Card.Description>
-              </Card.Header>
-              <Card.Content>
-                <form action={createChatCommand} className="flex flex-col gap-3">
-                  <select className={inputClass} name="projectId" defaultValue={activeProjects[0]?.id ?? ""}>
-                    <option value="" disabled>
-                      Escolha projeto
-                    </option>
-                    {activeProjects.map((project) => (
-                      <option key={project.id} value={project.id}>
-                        {project.name}
-                      </option>
-                    ))}
-                  </select>
-                  <select className={inputClass} name="provider" defaultValue="codex">
-                    {snapshot.providers.map((provider) => (
-                      <option key={provider.provider} value={provider.provider}>
-                        {provider.label} {provider.enabled ? "" : "(dry/disabled)"}
-                      </option>
-                    ))}
-                  </select>
-                  <textarea
-                    className={`${inputClass} min-h-28 resize-none`}
-                    name="message"
-                    placeholder="Digite comando para agente"
+              {view === "tasks" ? (
+                <div className="grid min-h-0 gap-4 xl:grid-cols-[420px_1fr]">
+                  <TaskForm
+                    activeProjects={activeProjects}
+                    auth={auth}
+                    createTask={createTask}
+                    snapshot={snapshot}
+                    taskState={taskState}
                   />
-                  {chatState.error ? <p className="text-sm text-danger">{chatState.error}</p> : null}
-                  {chatState.ok ? <p className="text-sm text-success">{chatState.ok}</p> : null}
-                  <Button isDisabled={auth.enabled && !auth.authorized} type="submit">
-                    <CirclePlay />
-                    Enviar Comando
-                  </Button>
-                </form>
-                <div className="mt-4 flex flex-col gap-2">
-                  {recentLogs.slice(0, 5).map((log) => (
-                    <div key={log.id} className="rounded-2xl bg-surface-secondary p-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <Chip
-                          color={log.level === "error" ? "danger" : log.level === "warn" ? "warning" : "default"}
-                          size="sm"
-                          variant="soft"
-                        >
-                          <Chip.Label>{log.level}</Chip.Label>
-                        </Chip>
-                        <span className="text-xs text-muted">{log.createdAt}</span>
-                      </div>
-                      <p className="mt-2 text-xs leading-5 text-muted">{log.message}</p>
-                    </div>
-                  ))}
+                  <Card className="min-h-0">
+                    <Card.Header>
+                      <Card.Title>Fila de Tasks</Card.Title>
+                      <Card.Description>{snapshot.tasks.length} tasks</Card.Description>
+                    </Card.Header>
+                    <Card.Content className="min-h-0">
+                      <ScrollShadow className="max-h-[calc(100vh-260px)] overflow-y-auto">
+                        <div className="flex flex-col gap-3">
+                          {snapshot.tasks.map((task) => {
+                            const project = snapshot.projects.find((item) => item.id === task.projectId);
+                            return (
+                              <button
+                                key={task.id}
+                                className="rounded-2xl bg-surface-secondary p-4 text-left outline-none"
+                                type="button"
+                                onClick={() => setSelectedTask(task)}
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <p className="truncate text-sm font-semibold">{task.title}</p>
+                                    <p className="truncate text-xs text-muted">{project?.name ?? task.projectId}</p>
+                                  </div>
+                                  <StatusChip status={task.status} />
+                                </div>
+                                <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted">{task.prompt}</p>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </ScrollShadow>
+                    </Card.Content>
+                  </Card>
                 </div>
-              </Card.Content>
-            </Card>
-          </div>
-        </ScrollShadow>
+              ) : null}
 
-        <div className="grid min-h-0 gap-4 lg:grid-cols-2">
-          <Card className="min-h-0">
-            <Card.Header>
-              <Card.Title>Projetos</Card.Title>
-              <Card.Description>{snapshot.projects.length} cadastrados</Card.Description>
-            </Card.Header>
-            <Card.Content className="min-h-0">
-              <ScrollShadow className="max-h-full overflow-y-auto">
-                <div className="flex flex-col gap-3">
-                  {snapshot.projects.map((project) => (
-                    <div key={project.id} className="rounded-2xl bg-surface-secondary p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold">{project.name}</p>
-                          <p className="truncate text-xs text-muted">{project.repoUrl}</p>
-                        </div>
-                        <StatusChip status={project.status} />
-                      </div>
-                      <p className="mt-2 text-xs text-muted">Branch: {project.defaultBranch}</p>
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        <Chip size="sm" variant="secondary">
-                          <Chip.Label>{project.defaultProvider ?? "manual"}</Chip.Label>
-                        </Chip>
-                        <Chip size="sm" variant="secondary">
-                          <Chip.Label>{project.autonomyLevel ?? "medium"}</Chip.Label>
-                        </Chip>
-                      </div>
-                    </div>
-                  ))}
-                  {snapshot.projects.length === 0 ? (
-                    <p className="rounded-2xl bg-surface-secondary p-4 text-sm text-muted">
-                      Nenhum projeto ainda.
-                    </p>
-                  ) : null}
-                </div>
-              </ScrollShadow>
-            </Card.Content>
-          </Card>
-
-          <Card className="min-h-0 lg:col-span-2">
-            <Card.Header>
-              <Card.Title>Kanban de Tasks</Card.Title>
-              <Card.Description>{snapshot.tasks.length} tasks por status</Card.Description>
-            </Card.Header>
-            <Card.Content className="min-h-0">
-              <Kanban hideScrollBar className="h-full min-h-[520px] items-start overflow-visible" isEnabled={false}>
-                {taskColumns.map((column) => {
-                  const items = snapshot.tasks.filter((task) => task.status === column.status);
-                  return (
-                    <Kanban.Column key={column.status} className="h-full min-w-72">
-                      <Kanban.ColumnHeader>
-                        <Kanban.ColumnIndicator className={column.color} />
-                        <Kanban.ColumnTitle>{column.label}</Kanban.ColumnTitle>
-                        <Kanban.ColumnCount>{items.length}</Kanban.ColumnCount>
-                      </Kanban.ColumnHeader>
-                      <Kanban.ColumnBody className="min-h-0">
-                        <Kanban.ScrollShadow className="max-h-[460px]">
-                          <Kanban.CardList
-                            aria-label={column.label}
-                            items={items}
-                            renderEmptyState={() => (
-                              <p className="p-3 text-sm text-muted">Sem tasks.</p>
-                            )}
-                          >
-                            {(task: Task) => {
-                              const project = snapshot.projects.find((item) => item.id === task.projectId);
-                              return (
-                                <Kanban.Card id={task.id} textValue={task.title}>
-                                  <TaskKanbanCard
-                                    onAction={taskAction}
-                                    projectName={project?.name ?? task.projectId}
-                                    task={task}
-                                  />
-                                </Kanban.Card>
-                              );
-                            }}
-                          </Kanban.CardList>
-                        </Kanban.ScrollShadow>
-                      </Kanban.ColumnBody>
-                    </Kanban.Column>
-                  );
-                })}
-              </Kanban>
-            </Card.Content>
-          </Card>
-
-          <Card className="min-h-0 lg:col-span-2">
-            <Card.Header>
-              <Card.Title>Runs e Logs</Card.Title>
-              <Card.Description>
-                {snapshot.runs.length} runs / {snapshot.logs.length} eventos
-              </Card.Description>
-            </Card.Header>
-            <Card.Content className="grid min-h-0 gap-4 lg:grid-cols-2">
-              <ScrollShadow className="max-h-64 overflow-y-auto">
-                <div className="flex flex-col gap-3">
-                  {gitState.error ? (
-                    <p className="rounded-2xl bg-danger/10 p-3 text-sm text-danger">{gitState.error}</p>
-                  ) : null}
-                  {gitState.ok ? (
-                    <p className="rounded-2xl bg-success/10 p-3 text-sm text-success">{gitState.ok}</p>
-                  ) : null}
-                  {snapshot.runs.slice(0, 8).map((run) => {
-                    const task = snapshot.tasks.find((item) => item.id === run.taskId);
-                    return (
-                      <div key={run.id} className="rounded-2xl bg-surface-secondary p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold">
-                              {task?.title ?? run.taskId}
-                            </p>
-                            <p className="truncate text-xs text-muted">{run.workspacePath}</p>
-                          </div>
-                          <StatusChip status={run.status} />
-                        </div>
-                        {run.summary ? (
-                          <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted">
-                            {run.summary}
-                          </p>
-                        ) : null}
-                        {run.changedFiles?.length ? (
-                          <div className="mt-3 flex flex-wrap gap-1.5">
-                            {run.changedFiles.slice(0, 6).map((file) => (
-                              <Chip key={file} size="sm" variant="secondary">
-                                <Chip.Label>{file}</Chip.Label>
-                              </Chip>
-                            ))}
-                          </div>
-                        ) : null}
-                        {run.diffSummary ? (
-                          <pre className="mt-3 max-h-24 overflow-auto rounded-xl bg-background p-3 text-xs text-muted">
-                            {run.diffSummary}
-                          </pre>
-                        ) : null}
-                        <div className="mt-3 grid gap-2 rounded-2xl bg-background p-3">
-                          <div className="flex flex-wrap gap-1.5">
-                            {run.commitSha ? (
-                              <Chip size="sm" variant="secondary">
-                                <Chip.Label>{run.commitSha.slice(0, 12)}</Chip.Label>
-                              </Chip>
-                            ) : null}
-                            {run.remoteBranch ? (
-                              <Chip size="sm" variant="secondary">
-                                <Chip.Label>{run.remoteBranch}</Chip.Label>
-                              </Chip>
-                            ) : null}
-                            {run.prUrl ? (
-                              <Chip color="success" size="sm" variant="soft">
-                                <Chip.Label>PR pronto</Chip.Label>
-                              </Chip>
-                            ) : null}
-                          </div>
-                          {run.gitStatus ? (
-                            <pre className="max-h-20 overflow-auto rounded-xl bg-surface-secondary p-2 text-xs text-muted">
-                              {run.gitStatus}
-                            </pre>
-                          ) : null}
-                          {run.prUrl ? (
-                            <a className="truncate text-xs text-accent no-underline" href={run.prUrl}>
-                              {run.prUrl}
-                            </a>
-                          ) : null}
-                        </div>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <Button size="sm" variant="outline" onPress={() => revalidateRun(run.id)}>
-                            <ArrowRotateLeft />
-                            Revalidar
-                          </Button>
-                          <Button size="sm" variant="outline" onPress={() => gitAction(run.id, "status")}>
-                            <Gear />
-                            Git status
-                          </Button>
-                          <Button size="sm" variant="outline" onPress={() => gitAction(run.id, "commit")}>
-                            <CircleCheck />
-                            Commit
-                          </Button>
-                          <Button size="sm" variant="outline" onPress={() => gitAction(run.id, "push")}>
-                            <CirclePlay />
-                            Push
-                          </Button>
-                          <Button size="sm" variant="outline" onPress={() => gitAction(run.id, "pr")}>
-                            <CirclePlus />
-                            PR
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {snapshot.runs.length === 0 ? (
-                    <p className="rounded-2xl bg-surface-secondary p-4 text-sm text-muted">
-                      Nenhum run ainda.
-                    </p>
-                  ) : null}
-                </div>
-              </ScrollShadow>
-              <ScrollShadow className="max-h-64 overflow-y-auto">
-                <div className="flex flex-col gap-2">
-                  {recentLogs.map((log) => (
-                    <div key={log.id} className="rounded-2xl bg-surface-secondary p-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <Chip
-                          color={
-                            log.level === "error"
-                              ? "danger"
-                              : log.level === "warn"
-                                ? "warning"
-                                : "default"
-                          }
-                          size="sm"
-                          variant="soft"
-                        >
-                          <Chip.Label>{log.level}</Chip.Label>
-                        </Chip>
-                        <span className="text-xs text-muted">{log.createdAt}</span>
-                      </div>
-                      <p className="mt-2 text-xs leading-5 text-muted">{log.message}</p>
-                    </div>
-                  ))}
-                  {recentLogs.length === 0 ? (
-                    <p className="rounded-2xl bg-surface-secondary p-4 text-sm text-muted">
-                      Nenhum log ainda.
-                    </p>
-                  ) : null}
-                </div>
-              </ScrollShadow>
-            </Card.Content>
-          </Card>
-        </div>
+              {view === "runs" ? (
+                <RunsPanel
+                  gitAction={gitAction}
+                  gitState={gitState}
+                  recentLogs={recentLogs}
+                  revalidateRun={revalidateRun}
+                  snapshot={snapshot}
+                />
+              ) : null}
+            </div>
+          )}
+        </section>
       </div>
-        </>
-      )}
-    </div>
+      <TaskDetailModal
+        onAction={taskAction}
+        onClose={() => setSelectedTask(null)}
+        projectName={selectedProject?.name ?? selectedTask?.projectId ?? ""}
+        runs={snapshot.runs}
+        task={selectedTask}
+      />
+    </main>
   );
 }

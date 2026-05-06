@@ -181,3 +181,9 @@
 - gh autenticado como Ghedyvan.
 - Repo criado/publicado: https://github.com/Ghedyvan/ralph-orchestrator
 - Branch main enviada para origin/main.
+
+2026-05-06 - R006 Navegacao e Kanban dedicado
+- S030 concluida: dashboard virou shell 100% viewport com sidebar e navegacao interna.
+- S031 concluida: rotas /kanban, /projects, /tasks e /runs criadas; home virou visao geral.
+- S032 concluida: cards do Kanban/fila abrem modal HeroUI com detalhes; retry reenfileira task e limpa branch/workspace antigo.
+- Validacoes: yarn lint, yarn typecheck, yarn worker:once e yarn build passaram.

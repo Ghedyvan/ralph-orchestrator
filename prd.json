@@ -2,11 +2,11 @@
   "project": "ralph-kanban",
   "version": "1.0.0",
   "createdAt": "2026-05-06T03:27:02.908Z",
-  "updatedAt": "2026-05-06T04:42:11.272Z",
+  "updatedAt": "2026-05-06T07:12:00.000Z",
   "activeRequest": {
-    "id": "R005",
-    "text": "Fazer projeto ficar completamente funcional e publicar commit em novo repositorio GitHub.",
-    "createdAt": "2026-05-06T04:33:48.512Z"
+    "id": "R006",
+    "text": "Separar funcionalidades em paginas com sidebar; Kanban em pagina propria; card abre modal de detalhes e permite retry em erro.",
+    "createdAt": "2026-05-06T07:12:00.000Z"
   },
   "requests": [
     {
@@ -37,6 +37,12 @@
       "id": "R005",
       "text": "Fazer projeto ficar completamente funcional e publicar commit em novo repositorio GitHub.",
       "createdAt": "2026-05-06T04:33:48.512Z",
+      "status": "done"
+    },
+    {
+      "id": "R006",
+      "text": "Separar funcionalidades em paginas com sidebar; Kanban em pagina propria; card abre modal de detalhes e permite retry em erro.",
+      "createdAt": "2026-05-06T07:12:00.000Z",
       "status": "done"
     }
   ],
@@ -475,6 +481,51 @@
       "passes": true,
       "notes": "Story iniciada: Git local, commit e publicacao GitHub.\nGit local inicializado e commit criado (f02f7dd). Publicacao GitHub bloqueada: gh nao instalado e GITHUB_TOKEN/GH_TOKEN ausentes; yarn publish:github falhou com 'GITHUB_TOKEN ou GH_TOKEN obrigatorio.'. Script de publicacao esta pronto para criar/push quando token existir.\nGitHub publicado com gh autenticado: https://github.com/Ghedyvan/ralph-orchestrator. Branch main enviada para origin/main.",
       "updatedAt": "2026-05-06T04:42:11.224Z"
+    },
+    {
+      "id": "S030",
+      "requestId": "R006",
+      "title": "Criar shell com sidebar e navegacao",
+      "description": "Transformar dashboard em shell 100% viewport com sidebar e navegacao por paginas.",
+      "acceptanceCriteria": [
+        "Sidebar aparece em todas as paginas principais.",
+        "Home fica como visao geral.",
+        "Layout ocupa 100% da tela sem perder scroll interno."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Shell com sidebar criado em OrchestratorDashboard usando view por pagina; home virou visao geral.",
+      "updatedAt": "2026-05-06T07:12:00.000Z"
+    },
+    {
+      "id": "S031",
+      "requestId": "R006",
+      "title": "Separar paginas Kanban, Projetos, Tasks e Runs",
+      "description": "Criar rotas dedicadas para cada funcionalidade operacional.",
+      "acceptanceCriteria": [
+        "/kanban mostra somente quadro e detalhes de task.",
+        "/projects, /tasks e /runs mostram suas funcionalidades principais.",
+        "Navegacao pela sidebar usa links internos."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Rotas /kanban, /projects, /tasks e /runs criadas com snapshot server-side e shell compartilhado.",
+      "updatedAt": "2026-05-06T07:12:00.000Z"
+    },
+    {
+      "id": "S032",
+      "requestId": "R006",
+      "title": "Adicionar modal de task e retry",
+      "description": "Ao clicar em card do Kanban ou fila, abrir modal com detalhes e acoes de retry/cancel/done.",
+      "acceptanceCriteria": [
+        "Card Kanban abre modal com prompt, projeto, provider, workspace, branch e runs.",
+        "Tasks failed/blocked/cancelled podem receber retry.",
+        "Retry limpa workspace/branch e reenfileira task."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Modal HeroUI adicionado; cards Kanban/fila abrem detalhes; retry via API limpa branchName/workspacePath e volta status para queued.",
+      "updatedAt": "2026-05-06T07:12:00.000Z"
     }
   ]
 }

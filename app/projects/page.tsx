@@ -3,8 +3,8 @@ import {getSnapshot} from "@/lib/orchestrator/store";
 
 export const dynamic = "force-dynamic";
 
-export default async function Home() {
+export default async function ProjectsPage() {
   const snapshot = await getSnapshot();
 
-  return <OrchestratorDashboard initialSnapshot={snapshot} view="overview" />;
+  return <OrchestratorDashboard initialSnapshot={snapshot} view="projects" />;
 }

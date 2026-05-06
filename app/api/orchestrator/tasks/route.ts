@@ -47,7 +47,7 @@ export async function PATCH(request: Request) {
     };
     if (!body.taskId) throw new Error("taskId obrigatorio.");
     if (body.action === "cancel") await patchTask(body.taskId, {status: "cancelled"});
-    else if (body.action === "retry") await patchTask(body.taskId, {status: "queued"});
+    else if (body.action === "retry") await patchTask(body.taskId, {branchName: undefined, status: "queued", workspacePath: undefined});
     else if (body.action === "complete-review") await patchTask(body.taskId, {status: "completed"});
     else throw new Error("Acao invalida.");
 
