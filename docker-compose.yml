@@ -65,6 +65,7 @@ services:
       GH_TOKEN: ${GH_TOKEN:-}
     volumes:
       - ralph-data:/app/data
+      - codex-home:/root/.codex
     healthcheck:
       test: ["CMD", "node", "-e", "process.exit(0)"]
       interval: 30s
@@ -75,3 +76,4 @@ services:
 
 volumes:
   ralph-data:
+  codex-home:
