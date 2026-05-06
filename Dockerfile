@@ -16,7 +16,7 @@ WORKDIR /app
 ARG HEROUI_AUTH_TOKEN
 ENV NODE_ENV=production
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates git wget \
+  && apt-get install -y --no-install-recommends bubblewrap ca-certificates git wget \
   && npm install -g @openai/codex@0.128.0 --no-audit --no-fund \
   && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/.next ./.next
