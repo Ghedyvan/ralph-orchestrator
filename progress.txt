@@ -176,3 +176,8 @@
 - S028 concluida: docs atualizadas e smoke passou com lint/typecheck/worker/build.
 - S029 parcialmente concluida: Git local inicializado e commit f02f7dd criado.
 - Bloqueio: publicacao em novo repo GitHub nao pode ser feita neste ambiente porque gh nao esta instalado e nao ha GITHUB_TOKEN/GH_TOKEN disponivel. yarn publish:github retornou: "GITHUB_TOKEN ou GH_TOKEN obrigatorio.".
+
+2026-05-06 - R005 Publicacao GitHub concluida
+- gh autenticado como Ghedyvan.
+- Repo criado/publicado: https://github.com/Ghedyvan/ralph-orchestrator
+- Branch main enviada para origin/main.
