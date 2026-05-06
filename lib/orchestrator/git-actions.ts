@@ -47,6 +47,10 @@ function githubAuthArgs() {
   return ["-c", `http.https://github.com/.extraheader=Authorization: Basic ${basicToken}`];
 }
 
+async function clearGithubAuthHeader(repoPath: string) {
+  await runGit(["config", "--unset-all", "http.https://github.com/.extraheader"], repoPath).catch(() => "");
+}
+
 function sanitizeGitOutput(output: string) {
   return output
     .replaceAll(GITHUB_TOKEN, "[redacted]")
@@ -136,6 +140,7 @@ export async function pushRunBranch(run: Run, task: Task): Promise<GitActionResu
   const repoPath = await repoPathFromRun(run);
   const branch = task.branchName || (await runGit(["branch", "--show-current"], repoPath));
   if (!branch) throw new Error("Branch nao encontrada.");
+  await clearGithubAuthHeader(repoPath);
   const output = await runGit([...githubAuthArgs(), "push", "-u", "origin", branch], repoPath);
   return {output: sanitizeGitOutput(output || `Branch enviada: ${branch}`), remoteBranch: branch};
 }
@@ -147,6 +152,7 @@ export async function createRunPullRequest(run: Run, task: Task, baseBranch: str
   const repoPath = await repoPathFromRun(run);
   const branch = task.branchName || (await runGit(["branch", "--show-current"], repoPath));
   if (!branch) throw new Error("Branch nao encontrada.");
+  await clearGithubAuthHeader(repoPath);
 
   const body = [
     `Task: ${task.id}`,
