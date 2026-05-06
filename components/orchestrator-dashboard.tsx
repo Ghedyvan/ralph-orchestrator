@@ -965,7 +965,7 @@ export function OrchestratorDashboard({
       sidebarCollapsible="offcanvas"
     >
       <div className="h-full overflow-y-auto overflow-x-hidden p-4 sm:p-6">
-        <section className="mx-auto flex min-h-full w-full max-w-[1600px] flex-col gap-4">
+        <section className="flex min-h-full w-full flex-col gap-4">
           <PageHeader {...headers[view]} />
 
           {auth.checked && auth.enabled && !auth.authorized ? (
