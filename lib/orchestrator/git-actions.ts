@@ -93,6 +93,20 @@ async function githubJson<T>(url: string, init?: RequestInit): Promise<T> {
   return JSON.parse(text) as T;
 }
 
+function prListUrl(owner: string, repo: string, branch: string) {
+  const params = new URLSearchParams({
+    head: `${owner}:${branch}`,
+    state: "all",
+  });
+  return `https://api.github.com/repos/${owner}/${repo}/pulls?${params.toString()}`;
+}
+
+async function findExistingPullRequest(owner: string, repo: string, branch: string) {
+  type PullRequestResponse = {html_url: string};
+  const existing = await githubJson<PullRequestResponse[]>(prListUrl(owner, repo, branch));
+  return existing[0]?.html_url;
+}
+
 async function repoPathFromRun(run: Run) {
   const workspaceReal = await realpath(run.workspacePath);
   const allowedRoot = await realpath(WORKSPACES_DIR);
@@ -186,12 +200,16 @@ export async function createRunPullRequest(run: Run, task: Task, baseBranch: str
 
   type PullRequestResponse = {html_url: string};
   let prUrl: string;
+  const existingPrUrl = await findExistingPullRequest(owner, repo, branch);
+  if (existingPrUrl) return {output: existingPrUrl, prUrl: existingPrUrl, remoteBranch: branch};
+
+  await runGit([...githubAuthArgs(), "push", "-u", "origin", branch], repoPath);
   try {
     const pr = await githubJson<PullRequestResponse>(`https://api.github.com/repos/${owner}/${repo}/pulls`, {
       body: JSON.stringify({
         base: baseBranch,
         body,
-        head: branch,
+        head: `${owner}:${branch}`,
         title: task.title,
       }),
       method: "POST",
@@ -200,11 +218,9 @@ export async function createRunPullRequest(run: Run, task: Task, baseBranch: str
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (!message.includes("A pull request already exists")) throw error;
-    const existing = await githubJson<PullRequestResponse[]>(
-      `https://api.github.com/repos/${owner}/${repo}/pulls?head=${owner}:${encodeURIComponent(branch)}&state=open`,
-    );
-    if (!existing[0]?.html_url) throw error;
-    prUrl = existing[0].html_url;
+    const existingPrUrlAfterError = await findExistingPullRequest(owner, repo, branch);
+    if (!existingPrUrlAfterError) throw error;
+    prUrl = existingPrUrlAfterError;
   }
 
   return {output: prUrl, prUrl, remoteBranch: branch};
