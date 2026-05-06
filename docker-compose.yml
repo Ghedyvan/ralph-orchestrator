@@ -1,7 +1,7 @@
 services:
   web:
     build: .
-    command: yarn start
+    command: npm run start
     ports:
       - "3000:3000"
     environment:
@@ -20,7 +20,7 @@ services:
 
   worker:
     build: .
-    command: yarn worker
+    command: npm run worker
     environment:
       NODE_ENV: production
       SUPABASE_URL: ${SUPABASE_URL:-}

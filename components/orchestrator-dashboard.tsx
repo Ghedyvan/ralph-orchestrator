@@ -14,7 +14,6 @@ import {
   TriangleExclamation,
 } from "@gravity-ui/icons";
 import {Button, Card, Chip, ScrollShadow} from "@heroui/react";
-import {KPI, KPIGroup} from "@heroui-pro/react";
 
 type FormState = {
   error?: string;
@@ -85,64 +84,35 @@ function StatusChip({status}: {status: string}) {
 }
 
 function Summary({snapshot}: {snapshot: DashboardSnapshot}) {
+  const items = [
+    {icon: <Gear />, label: "Projetos", status: "success", value: snapshot.totals.projects},
+    {icon: <Clock />, label: "Fila", status: "warning", value: snapshot.totals.queued},
+    {icon: <CirclePlay />, label: "Rodando", status: "warning", value: snapshot.totals.running},
+    {icon: <CircleCheck />, label: "Concluidas", status: "success", value: snapshot.totals.completed},
+    {
+      icon: <TriangleExclamation />,
+      label: "Falhas",
+      status: snapshot.totals.failed > 0 ? "danger" : "success",
+      value: snapshot.totals.failed,
+    },
+  ];
+
   return (
-    <KPIGroup className="grid shrink-0 gap-3 md:grid-cols-2 xl:grid-cols-5">
-      <KPI>
-        <KPI.Header>
-          <KPI.Icon status="success">
-            <Gear />
-          </KPI.Icon>
-          <KPI.Title>Projetos</KPI.Title>
-        </KPI.Header>
-        <KPI.Content>
-          <KPI.Value value={snapshot.totals.projects} />
-        </KPI.Content>
-      </KPI>
-      <KPI>
-        <KPI.Header>
-          <KPI.Icon status="warning">
-            <Clock />
-          </KPI.Icon>
-          <KPI.Title>Fila</KPI.Title>
-        </KPI.Header>
-        <KPI.Content>
-          <KPI.Value value={snapshot.totals.queued} />
-        </KPI.Content>
-      </KPI>
-      <KPI>
-        <KPI.Header>
-          <KPI.Icon status="warning">
-            <CirclePlay />
-          </KPI.Icon>
-          <KPI.Title>Rodando</KPI.Title>
-        </KPI.Header>
-        <KPI.Content>
-          <KPI.Value value={snapshot.totals.running} />
-        </KPI.Content>
-      </KPI>
-      <KPI>
-        <KPI.Header>
-          <KPI.Icon status="success">
-            <CircleCheck />
-          </KPI.Icon>
-          <KPI.Title>Concluidas</KPI.Title>
-        </KPI.Header>
-        <KPI.Content>
-          <KPI.Value value={snapshot.totals.completed} />
-        </KPI.Content>
-      </KPI>
-      <KPI>
-        <KPI.Header>
-          <KPI.Icon status={snapshot.totals.failed > 0 ? "danger" : "success"}>
-            <TriangleExclamation />
-          </KPI.Icon>
-          <KPI.Title>Falhas</KPI.Title>
-        </KPI.Header>
-        <KPI.Content>
-          <KPI.Value value={snapshot.totals.failed} />
-        </KPI.Content>
-      </KPI>
-    </KPIGroup>
+    <div className="grid shrink-0 gap-3 md:grid-cols-2 xl:grid-cols-5">
+      {items.map((item) => (
+        <Card key={item.label}>
+          <Card.Content className="flex items-center justify-between gap-3 p-4">
+            <div>
+              <p className="text-sm text-muted">{item.label}</p>
+              <p className="mt-1 text-3xl font-semibold tabular-nums">{item.value}</p>
+            </div>
+            <Chip color={item.status as "success" | "warning" | "danger"} size="sm" variant="soft">
+              {item.icon}
+            </Chip>
+          </Card.Content>
+        </Card>
+      ))}
+    </div>
   );
 }
 

@@ -1,31 +1,26 @@
 FROM node:22-bookworm-slim AS deps
 WORKDIR /app
-RUN corepack enable && corepack prepare yarn@1.22.22 --activate
-COPY package.json yarn.lock ./
-RUN yarn install --frozen-lockfile --non-interactive --ignore-engines --production=false --network-timeout 600000 --network-concurrency 1 --child-concurrency 1 \
-  || (cat yarn-error.log 2>/dev/null || true; exit 1)
+COPY package.json package-lock.json ./
+RUN npm ci --include=dev --no-audit --no-fund
 
 FROM node:22-bookworm-slim AS builder
 WORKDIR /app
-RUN corepack enable && corepack prepare yarn@1.22.22 --activate
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN yarn build
+RUN npm run build
 
 FROM node:22-bookworm-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates git wget \
-  && rm -rf /var/lib/apt/lists/* \
-  && corepack enable \
-  && corepack prepare yarn@1.22.22 --activate
+  && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/yarn.lock ./yarn.lock
+COPY --from=builder /app/package-lock.json ./package-lock.json
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/scripts ./scripts
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD wget -qO- http://127.0.0.1:3000/api/health || exit 1
 EXPOSE 3000
-CMD ["yarn", "start"]
+CMD ["npm", "run", "start"]
