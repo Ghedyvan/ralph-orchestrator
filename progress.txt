@@ -222,3 +222,9 @@
 - Decisao: ajuste pequeno no shell existente, sem alterar navegacao, sidebar, cards ou dados.
 - Alteracoes: `components/orchestrator-dashboard.tsx` removeu `mx-auto max-w-[1600px]` do wrapper principal, mantendo `w-full` para ocupar toda a largura disponivel.
 - Validacoes: `yarn lint`, `yarn typecheck` e `yarn build` passaram. Observacao: `NODE_ENV=production` exigiu `yarn install --frozen-lockfile --production=false` para instalar devDependencies; build manteve aviso existente de multiplos lockfiles.
+
+2026-05-06 - Scroll do container principal
+- Solicitacao: o conteudo principal nao rolava verticalmente; apenas a sidebar deve permanecer fixa.
+- Alteracoes: `html` e `body` agora tem `height: 100%`; o wrapper principal em `components/orchestrator-dashboard.tsx` deixou de depender de `h-full` e passou a usar `max-h-dvh min-h-0 overflow-y-auto overflow-x-hidden`, mantendo o `AppLayout`/sidebar fora do scroll do conteudo.
+- Validacoes: `NODE_ENV=development yarn install --frozen-lockfile`, `yarn lint`, `yarn typecheck` e `yarn build` passaram. Smoke HTTP com `yarn start -p 3000` e fetch Node retornou 200 para `/`, `/kanban` e `/tasks`.
+- Observacao: `yarn build` manteve aviso preexistente de multiplos lockfiles e raiz inferida pelo Next.js em `/app`.

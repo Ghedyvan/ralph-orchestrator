@@ -964,7 +964,7 @@ export function OrchestratorDashboard({
       sidebar={<AppSidebar view={view} />}
       sidebarCollapsible="offcanvas"
     >
-      <div className="h-full overflow-y-auto overflow-x-hidden p-4 sm:p-6">
+      <div className="max-h-dvh min-h-0 overflow-y-auto overflow-x-hidden p-4 sm:p-6">
         <section className="flex min-h-full w-full flex-col gap-4">
           <PageHeader {...headers[view]} />
 
