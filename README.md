@@ -80,6 +80,27 @@ data/workspaces/
 
 Ambos sao ignorados pelo Git.
 
+Em producao, o app usa `RALPH_DATA_DIR` quando definido. No Docker Compose, o caminho padrao e `/app/data`.
+
+Protecoes do fallback JSON local:
+
+- escrita atomica do estado para evitar arquivo parcial durante redeploy;
+- backups automaticos em `data/backups/` sempre que houver projetos, tasks, runs ou logs;
+- restauracao automatica do ultimo backup nao vazio quando o arquivo atual estiver ausente, vazio ou invalido;
+- recusa de sobrescrever um estado com dados por um estado vazio.
+
+Em ambiente novo de producao, inicialize conscientemente com:
+
+```text
+RALPH_ALLOW_EMPTY_STATE=1
+```
+
+Depois que o primeiro projeto/task existir, remova ou volte essa variavel para `0`. Para apagar tudo de forma intencional, use temporariamente:
+
+```text
+RALPH_ALLOW_EMPTY_STATE_RESET=1
+```
+
 ## Providers
 
 Providers existem no modelo:
@@ -242,6 +263,7 @@ Recomendado em producao:
 - usar usuario Linux sem privilegios;
 - montar volume persistente para `data/`;
 - fazer backup de `data/orchestrator-state.json`;
+- manter `RALPH_ALLOW_EMPTY_STATE=0` apos a primeira inicializacao para o app falhar em vez de recriar estado vazio;
 - manter `RALPH_RUNNER_ENABLED` desligado ate revisar seguranca;
 - usar PR/review humano antes de merge automatico;
 - configurar `RALPH_ALLOWED_REPOS`, `RALPH_ALLOWED_COMMANDS` e `RALPH_FORBIDDEN_PATHS`.

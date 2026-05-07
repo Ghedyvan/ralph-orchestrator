@@ -10,13 +10,18 @@ import type {
 
 import {createSupabaseServerClient, isSupabaseConfigured} from "@/lib/orchestrator/supabase";
 import {randomUUID} from "node:crypto";
-import {mkdir, readFile, writeFile} from "node:fs/promises";
+import {copyFile, mkdir, readdir, readFile, rename, rm, writeFile} from "node:fs/promises";
 import path from "node:path";
 
-const DATA_DIR = path.join(process.cwd(), "data");
+const DATA_DIR = process.env.RALPH_DATA_DIR
+  ? path.resolve(process.env.RALPH_DATA_DIR)
+  : path.join(process.cwd(), "data");
 const STATE_PATH = path.join(DATA_DIR, "orchestrator-state.json");
+const STATE_BACKUP_DIR = path.join(DATA_DIR, "backups");
+const STATE_BACKUP_LIMIT = 30;
 
 const now = () => new Date().toISOString();
+const backupStamp = () => now().replace(/[:.]/g, "-");
 
 type ProjectRow = {
   id: string;
@@ -195,6 +200,94 @@ async function ensureDataDir() {
   await mkdir(DATA_DIR, {recursive: true});
 }
 
+const stateRecordCount = (state: Pick<OrchestratorState, "logs" | "projects" | "runs" | "tasks">) =>
+  state.projects.length + state.tasks.length + state.runs.length + state.logs.length;
+
+const isProduction = () => process.env.NODE_ENV === "production";
+const allowEmptyBootstrap = () => !isProduction() || process.env.RALPH_ALLOW_EMPTY_STATE === "1";
+const allowEmptyReset = () => process.env.RALPH_ALLOW_EMPTY_STATE_RESET === "1";
+
+function stateWithProviders(state: OrchestratorState): OrchestratorState {
+  return {
+    ...initialState(),
+    ...state,
+    providers: initialState().providers,
+  };
+}
+
+async function readJsonStateFile(filePath: string): Promise<OrchestratorState> {
+  const raw = await readFile(filePath, "utf8");
+  return stateWithProviders(JSON.parse(raw) as OrchestratorState);
+}
+
+async function writeFileAtomic(filePath: string, contents: string) {
+  const tempPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+  await writeFile(tempPath, contents);
+  await rename(tempPath, filePath);
+}
+
+async function pruneStateBackups() {
+  const entries = await readdir(STATE_BACKUP_DIR).catch(() => []);
+  const backups = entries
+    .filter((entry) => entry.startsWith("orchestrator-state-") && entry.endsWith(".json"))
+    .sort()
+    .reverse();
+
+  await Promise.all(
+    backups.slice(STATE_BACKUP_LIMIT).map((entry) => rm(path.join(STATE_BACKUP_DIR, entry), {force: true})),
+  );
+}
+
+async function writeStateBackup(contents: string) {
+  await mkdir(STATE_BACKUP_DIR, {recursive: true});
+  await writeFileAtomic(path.join(STATE_BACKUP_DIR, `orchestrator-state-${backupStamp()}.json`), contents);
+  await pruneStateBackups();
+}
+
+async function latestNonEmptyStateBackup(): Promise<OrchestratorState | null> {
+  const entries = await readdir(STATE_BACKUP_DIR).catch(() => []);
+  const backups = entries
+    .filter((entry) => entry.startsWith("orchestrator-state-") && entry.endsWith(".json"))
+    .sort()
+    .reverse();
+
+  for (const backup of backups) {
+    try {
+      const state = await readJsonStateFile(path.join(STATE_BACKUP_DIR, backup));
+      if (stateRecordCount(state) > 0) return state;
+    } catch {
+      // Ignore invalid backup snapshots and continue looking for a usable one.
+    }
+  }
+
+  return null;
+}
+
+async function restoreStateFromBackup(reason: string): Promise<OrchestratorState | null> {
+  const backup = await latestNonEmptyStateBackup();
+  if (!backup) return null;
+
+  const contents = `${JSON.stringify(backup, null, 2)}\n`;
+  await writeFileAtomic(STATE_PATH, contents);
+  await copyFile(STATE_PATH, path.join(DATA_DIR, `orchestrator-state.restored-${backupStamp()}.json`));
+  console.warn(`Ralph restaurou o estado local a partir do backup mais recente: ${reason}.`);
+  return backup;
+}
+
+function stateBootstrapError() {
+  return new Error(
+    "Estado local ausente em producao. Monte o volume persistente em /app/data ou defina RALPH_DATA_DIR. " +
+      "Para inicializar um ambiente novo vazio, defina RALPH_ALLOW_EMPTY_STATE=1 conscientemente.",
+  );
+}
+
+function emptyStateError() {
+  return new Error(
+    "Estado local vazio em producao sem permissao explicita. " +
+      "Se este ambiente e novo, defina RALPH_ALLOW_EMPTY_STATE=1; se nao e novo, verifique backups e volume persistente.",
+  );
+}
+
 export async function readState(): Promise<OrchestratorState> {
   const supabase = createSupabaseServerClient();
   if (supabase) {
@@ -222,14 +315,21 @@ export async function readState(): Promise<OrchestratorState> {
   await ensureDataDir();
 
   try {
-    const raw = await readFile(STATE_PATH, "utf8");
-    const parsed = JSON.parse(raw) as OrchestratorState;
-    return {
-      ...initialState(),
-      ...parsed,
-      providers: initialState().providers,
-    };
-  } catch {
+    const state = await readJsonStateFile(STATE_PATH);
+    if (!allowEmptyReset() && stateRecordCount(state) === 0) {
+      const restored = await restoreStateFromBackup("arquivo atual vazio");
+      if (restored) return restored;
+      if (!allowEmptyBootstrap()) throw emptyStateError();
+    }
+    return state;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    const restored = await restoreStateFromBackup(code === "ENOENT" ? "arquivo ausente" : "arquivo invalido");
+    if (restored) return restored;
+
+    if (code !== "ENOENT") throw error;
+    if (!allowEmptyBootstrap()) throw stateBootstrapError();
+
     const state = initialState();
     await writeState(state);
     return state;
@@ -242,7 +342,23 @@ export async function writeState(state: OrchestratorState) {
   }
 
   await ensureDataDir();
-  await writeFile(STATE_PATH, `${JSON.stringify(state, null, 2)}\n`);
+  if (!allowEmptyReset() && stateRecordCount(state) === 0) {
+    try {
+      const current = await readJsonStateFile(STATE_PATH);
+      if (stateRecordCount(current) > 0) {
+        throw new Error(
+          "Recusando sobrescrever estado local com dados por estado vazio. " +
+            "Defina RALPH_ALLOW_EMPTY_STATE_RESET=1 apenas se esta limpeza for intencional.",
+        );
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+  }
+
+  const contents = `${JSON.stringify(state, null, 2)}\n`;
+  await writeFileAtomic(STATE_PATH, contents);
+  if (stateRecordCount(state) > 0) await writeStateBackup(contents);
 }
 
 export async function getSnapshot(): Promise<DashboardSnapshot> {

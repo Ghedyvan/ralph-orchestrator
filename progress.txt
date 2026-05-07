@@ -234,3 +234,11 @@
 - Decisao: tratar no backend antes de chamar a API de PR, mantendo a UI e o fluxo commit/push/PR existentes.
 - Alteracoes: `lib/orchestrator/git-actions.ts` agora busca `origin/<baseBranch>` e valida `rev-list --count origin/<baseBranch>..<branch>` antes do push/criacao de PR. Quando nao ha commits, retorna mensagem acionavel em portugues, distinguindo workspace com alteracoes sem commit de branch igual a base.
 - Validacoes: `NODE_ENV=development yarn install --frozen-lockfile --production=false`, `yarn lint`, `yarn typecheck` e `yarn build` passaram.
+
+2026-05-07 - Persistencia apos redeploy
+- Solicitacao: impedir que projetos/tasks sumam novamente apos redeploy na VPS.
+- Diagnostico: VPS estava com `SUPABASE_URL` vazio, lendo fallback JSON local; `orchestrator-state.json` estava vazio, mas os workspaces persistiam no volume Docker.
+- Recuperacao remota: estado reconstruido a partir de `TASK.md`/`RUN.json` no volume `ldfqzk0eotp62e6oby4gbypw_ralph-data`; resultado verificado via healthcheck com 2 projetos, 8 tasks, 8 runs e 8 logs. Tasks recuperadas ficaram em `review` para nao reexecutar automaticamente.
+- Decisao: em producao, estado local ausente/vazio/invalido passa a ser incidente, nao bootstrap silencioso. Bootstrap vazio exige `RALPH_ALLOW_EMPTY_STATE=1`; reset vazio exige `RALPH_ALLOW_EMPTY_STATE_RESET=1`.
+- Alteracoes: escrita atomica do JSON, backups automaticos em `data/backups/`, restauracao automatica do ultimo backup nao vazio, bloqueio de sobrescrita de estado com dados por estado vazio, `RALPH_DATA_DIR` configuravel no compose e documentacao atualizada.
+- Validacoes locais: `yarn lint`, `yarn typecheck`, `yarn build`, smoke `worker` dev vazio, smoke producao com estado ausente/vazio falhando como esperado, e smoke producao com estado nao vazio criando backup.

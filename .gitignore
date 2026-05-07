@@ -5,6 +5,8 @@ dist/
 build/
 *.tsbuildinfo
 data/orchestrator-state.json
+data/orchestrator-state.*
+data/backups/
 data/workspaces/
 
 .env*
