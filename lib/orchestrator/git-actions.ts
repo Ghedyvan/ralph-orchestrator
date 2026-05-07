@@ -107,6 +107,25 @@ async function findExistingPullRequest(owner: string, repo: string, branch: stri
   return existing[0]?.html_url;
 }
 
+async function assertBranchHasCommitsForPr(repoPath: string, branch: string, baseBranch: string) {
+  if (branch === baseBranch) {
+    throw new Error("Nao e possivel criar PR da branch base para ela mesma.");
+  }
+
+  await runGit([...githubAuthArgs(), "fetch", "origin", baseBranch], repoPath);
+  const baseRef = `origin/${baseBranch}`;
+  const commitCount = await runGit(["rev-list", "--count", `${baseRef}..${branch}`], repoPath);
+
+  if (Number(commitCount) === 0) {
+    const status = await runGit(["status", "--short"], repoPath);
+    const detail = status
+      ? "Ha alteracoes sem commit no workspace. Clique em Commit antes de abrir o PR."
+      : "A branch ja esta igual a base. Gere ou commite alteracoes antes de abrir o PR.";
+
+    throw new Error(`Nao ha commits entre ${baseBranch} e ${branch}. ${detail}`);
+  }
+}
+
 async function repoPathFromRun(run: Run) {
   const workspaceReal = await realpath(run.workspacePath);
   const allowedRoot = await realpath(WORKSPACES_DIR);
@@ -203,6 +222,7 @@ export async function createRunPullRequest(run: Run, task: Task, baseBranch: str
   const existingPrUrl = await findExistingPullRequest(owner, repo, branch);
   if (existingPrUrl) return {output: existingPrUrl, prUrl: existingPrUrl, remoteBranch: branch};
 
+  await assertBranchHasCommitsForPr(repoPath, branch, baseBranch);
   await runGit([...githubAuthArgs(), "push", "-u", "origin", branch], repoPath);
   try {
     const pr = await githubJson<PullRequestResponse>(`https://api.github.com/repos/${owner}/${repo}/pulls`, {
