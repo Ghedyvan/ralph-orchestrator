@@ -6,6 +6,7 @@ O projeto nasceu como visualizador de `prd.json`, mas agora tem uma base de orqu
 
 - cadastro de projetos/repositorios;
 - criacao de tasks;
+- decomposicao Ralph em microprocessos/story tasks;
 - fila persistida;
 - worker separado;
 - workspaces por task;
@@ -55,14 +56,36 @@ curl http://localhost:3000/api/health
 
 1. Cadastre projeto no dashboard.
 2. Crie task com prompt.
-3. Task entra como `queued`.
-4. Worker pega task.
-5. Worker cria `data/workspaces/<project-id>/<task-id>/`.
-6. Worker grava `TASK.md` e `RUN.json`.
-7. Em modo seguro inicial, task manual vira dry-run concluido.
-8. Review humano ve diff/arquivos no dashboard.
-9. Usuario aprovado pode acionar Git status, Commit, Push e PR.
-10. Providers reais ficam bloqueados ate configuracao explicita.
+3. A UI Ralph divide a task em microprocessos pequenos quando `decompose` esta ativo.
+4. Cada microprocesso entra no Kanban como card proprio em `queued`.
+5. Worker pega uma story task.
+6. Worker cria `data/workspaces/<project-id>/<task-id>/`.
+7. Worker grava `TASK.md` e `RUN.json`.
+8. Em modo seguro inicial, task manual vira dry-run concluido.
+9. Review humano ve diff/arquivos no dashboard.
+10. Usuario aprovado pode acionar Git status, Commit, Push e PR.
+11. Providers reais ficam bloqueados ate configuracao explicita.
+
+## Microprocessos Ralph
+
+Ao criar uma task pela UI ou pelo chat operacional, Ralph gera story tasks rastreaveis para escopo, backend, frontend e validacao. Cada story aparece individualmente no Kanban com:
+
+- ordem da story, area e provider;
+- modelo solicitado quando o prompt atribui uma area a outro modelo;
+- progresso percentual;
+- trabalho atual;
+- pensamento IA operacional resumido;
+- runs e logs no modal de detalhes.
+
+Exemplo de atribuicao natural:
+
+```text
+Faca a implementacao da funcionalidade X, o mimo v2.5 pro deve ser o responsavel pelo frontend.
+```
+
+Nesse caso, a story de frontend fica com provider `mimo` e `modelHint` `mimo v2.5 pro`. O provider HTTP usa esse `modelHint` como modelo solicitado quando chamadas reais estiverem habilitadas.
+
+Chamadas internas antigas e revalidacoes podem criar uma unica task usando `decompose: false`.
 
 ## Dados Locais
 

@@ -18,11 +18,13 @@ export const TASK_STATUSES = [
   "cancelled",
 ] as const;
 export const RUN_STATUSES = ["created", "running", "failed", "completed"] as const;
+export const TASK_STORY_AREAS = ["scope", "backend", "frontend", "validation", "docs", "review", "general"] as const;
 
 export type AgentProvider = (typeof AGENT_PROVIDERS)[number];
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
 export type TaskStatus = (typeof TASK_STATUSES)[number];
 export type RunStatus = (typeof RUN_STATUSES)[number];
+export type TaskStoryArea = (typeof TASK_STORY_AREAS)[number];
 
 export type Project = {
   id: string;
@@ -48,6 +50,16 @@ export type Task = {
   priority: number;
   branchName?: string;
   workspacePath?: string;
+  storyGroupId?: string;
+  storyParentTitle?: string;
+  storyIndex?: number;
+  storyCount?: number;
+  storyArea?: TaskStoryArea;
+  modelHint?: string;
+  progressPercent?: number;
+  currentWork?: string;
+  // Operational summary for UI, not raw hidden chain-of-thought.
+  aiThought?: string;
   createdAt: string;
   updatedAt: string;
 };

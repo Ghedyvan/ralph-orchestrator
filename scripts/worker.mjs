@@ -194,6 +194,33 @@ function addLog(state, runId, level, message) {
   state.logs.push({id: randomUUID(), runId, level, message, createdAt: now()});
 }
 
+function storyLabel(task) {
+  if (task.storyIndex && task.storyCount) return `story ${task.storyIndex}/${task.storyCount}`;
+  return "task";
+}
+
+function setTaskProgress(task, {aiThought, currentWork, progressPercent}) {
+  if (typeof progressPercent === "number") task.progressPercent = Math.max(0, Math.min(100, progressPercent));
+  if (currentWork) task.currentWork = currentWork;
+  if (aiThought) task.aiThought = aiThought;
+  task.updatedAt = now();
+}
+
+function taskMetadataMarkdown(task) {
+  return [
+    task.storyGroupId ? `Story group: ${task.storyGroupId}` : null,
+    task.storyIndex && task.storyCount ? `Story: ${task.storyIndex}/${task.storyCount}` : null,
+    task.storyArea ? `Area: ${task.storyArea}` : null,
+    task.storyParentTitle ? `Parent task: ${task.storyParentTitle}` : null,
+    task.modelHint ? `Requested model: ${task.modelHint}` : null,
+    typeof task.progressPercent === "number" ? `Progress: ${task.progressPercent}%` : null,
+    task.currentWork ? `Current work: ${task.currentWork}` : null,
+    task.aiThought ? `AI operational thought: ${task.aiThought}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 function repoAllowed(repoUrl) {
   if (ALLOWED_REPOS.length === 0) return true;
   return ALLOWED_REPOS.some((allowed) => repoUrl.includes(allowed));
@@ -203,7 +230,7 @@ async function writeWorkspaceFiles(workspacePath, project, task, run) {
   await mkdir(workspacePath, {recursive: true});
   await writeFile(
     path.join(workspacePath, "TASK.md"),
-    `# ${task.title}\n\nProject: ${project.name}\nRepo: ${project.repoUrl}\nProvider: ${task.provider}\n\n## Prompt\n\n${task.prompt}\n`,
+    `# ${task.title}\n\nProject: ${project.name}\nRepo: ${project.repoUrl}\nProvider: ${task.provider}\n${taskMetadataMarkdown(task)}\n\n## Prompt\n\n${task.prompt}\n`,
   );
   await writeFile(path.join(workspacePath, "RUN.json"), `${JSON.stringify(run, null, 2)}\n`);
   await writeFile(
@@ -346,7 +373,11 @@ function expireStaleRuns(state) {
     if (task.status !== "running") continue;
     if (new Date(task.updatedAt).getTime() > cutoff) continue;
     task.status = "failed";
-    task.updatedAt = now();
+    setTaskProgress(task, {
+      currentWork: "Timeout de task atingido.",
+      aiThought: "Bloqueio operacional: execucao excedeu tempo maximo configurado.",
+      progressPercent: task.progressPercent ?? 0,
+    });
     const run = state.runs.find((item) => item.taskId === task.id && item.status === "running");
     if (run) {
       run.status = "failed";
@@ -372,7 +403,11 @@ async function processOne() {
   const project = state.projects.find((item) => item.id === task.projectId);
   if (!project || project.status !== "active") {
     task.status = "blocked";
-    task.updatedAt = now();
+    setTaskProgress(task, {
+      currentWork: "Projeto indisponivel para execucao.",
+      aiThought: "Bloqueio operacional: projeto ausente ou pausado precisa ser corrigido antes de executar.",
+      progressPercent: task.progressPercent ?? 0,
+    });
     await writeState(state);
     return true;
   }
@@ -394,11 +429,20 @@ async function processOne() {
   task.status = "running";
   task.branchName = branchName;
   task.workspacePath = workspacePath;
-  task.updatedAt = now();
+  setTaskProgress(task, {
+    currentWork: "Preparando workspace e arquivos Ralph.",
+    aiThought: `Executando ${storyLabel(task)} com provider ${selectedProvider}.`,
+    progressPercent: 10,
+  });
   state.runs.push(run);
   addLog(state, run.id, "info", `Run iniciado para task ${task.id}.`);
   if (!repoAllowed(project.repoUrl)) {
     task.status = "blocked";
+    setTaskProgress(task, {
+      currentWork: "Repositorio bloqueado por politica.",
+      aiThought: "Bloqueio operacional: RALPH_ALLOWED_REPOS nao permite este repositorio.",
+      progressPercent: 10,
+    });
     run.status = "failed";
     run.finishedAt = now();
     run.summary = "Repositorio bloqueado por RALPH_ALLOWED_REPOS.";
@@ -408,12 +452,21 @@ async function processOne() {
   }
   await writeState(state);
   await writeWorkspaceFiles(workspacePath, project, task, run);
+  setTaskProgress(task, {
+    currentWork: "Preparando workspace Git.",
+    aiThought: "Validando acesso ao repositorio e criando branch isolada para a story.",
+    progressPercent: 25,
+  });
   let gitResult;
   try {
     gitResult = await prepareGitWorkspace(state, run, project, task, workspacePath, branchName);
   } catch (error) {
     task.status = "blocked";
-    task.updatedAt = now();
+    setTaskProgress(task, {
+      currentWork: "Bloqueado ao preparar Git workspace.",
+      aiThought: "Bloqueio operacional: acesso Git/autenticacao precisa acao antes da execucao.",
+      progressPercent: 30,
+    });
     run.status = "failed";
     run.finishedAt = now();
     run.summary = `Falha ao preparar Git workspace. ${sanitizeGitError(error)}`;
@@ -421,6 +474,11 @@ async function processOne() {
     await writeState(state);
     return true;
   }
+  setTaskProgress(task, {
+    currentWork: "Workspace Git pronto; avaliando provider.",
+    aiThought: "Repositorio preparado; proxima etapa e chamar o provider responsavel pela story.",
+    progressPercent: 45,
+  });
   await writeState(state);
 
   const fresh = await readState();
@@ -428,9 +486,13 @@ async function processOne() {
   const freshRun = fresh.runs.find((item) => item.id === run.id);
   if (!freshTask || !freshRun) return true;
 
-  if (!providerReady(selectedProvider) && selectedProvider !== "manual") {
+  if (!providerReady(selectedProvider, freshTask) && selectedProvider !== "manual") {
     freshTask.status = "blocked";
-    freshTask.updatedAt = now();
+    setTaskProgress(freshTask, {
+      currentWork: `Provider ${selectedProvider} indisponivel.`,
+      aiThought: "Bloqueio operacional: configure adapter/env vars do provider antes da execucao real.",
+      progressPercent: 50,
+    });
     freshRun.status = "failed";
     freshRun.finishedAt = now();
     freshRun.summary = `Provider ${selectedProvider} desabilitado. Configure adapter e env var antes de execucao real.`;
@@ -441,7 +503,11 @@ async function processOne() {
 
   if (provider?.executionMode !== "dry-run" && !REAL_RUN_ENABLED) {
     freshTask.status = "blocked";
-    freshTask.updatedAt = now();
+    setTaskProgress(freshTask, {
+      currentWork: "Execucao real bloqueada por politica.",
+      aiThought: "Bloqueio operacional: habilite RALPH_RUNNER_ENABLED apenas em VPS preparada.",
+      progressPercent: 50,
+    });
     freshRun.status = "failed";
     freshRun.finishedAt = now();
     freshRun.summary = "Execucao real bloqueada. Defina RALPH_RUNNER_ENABLED=1 somente em VPS preparada.";
@@ -452,6 +518,12 @@ async function processOne() {
 
   let providerResult;
   try {
+    setTaskProgress(freshTask, {
+      currentWork: `Chamando provider ${selectedProvider}.`,
+      aiThought: `Story roteada para ${freshTask.modelHint ?? selectedProvider}; aguardando resposta do agente.`,
+      progressPercent: 65,
+    });
+    await writeState(fresh);
     providerResult = await runProvider({
       provider: selectedProvider,
       project,
@@ -461,7 +533,11 @@ async function processOne() {
     });
   } catch (error) {
     freshTask.status = "blocked";
-    freshTask.updatedAt = now();
+    setTaskProgress(freshTask, {
+      currentWork: `Provider ${selectedProvider} falhou.`,
+      aiThought: "Bloqueio operacional: provider retornou erro antes de concluir a story.",
+      progressPercent: 70,
+    });
     freshRun.status = "failed";
     freshRun.finishedAt = now();
     freshRun.summary = `Provider ${selectedProvider} falhou. ${sanitizeGitError(error)}`;
@@ -472,7 +548,11 @@ async function processOne() {
 
   if (!providerResult.ok && providerResult.blocked) {
     freshTask.status = "blocked";
-    freshTask.updatedAt = now();
+    setTaskProgress(freshTask, {
+      currentWork: providerResult.summary,
+      aiThought: "Bloqueio operacional: provider recusou ou ficou indisponivel; revisar configuracao.",
+      progressPercent: 70,
+    });
     freshRun.status = "failed";
     freshRun.finishedAt = now();
     freshRun.summary = providerResult.summary;
@@ -486,7 +566,11 @@ async function processOne() {
   freshTask.status = "review";
   freshTask.branchName = branchName;
   freshTask.workspacePath = workspacePath;
-  freshTask.updatedAt = now();
+  setTaskProgress(freshTask, {
+    currentWork: "Aguardando review humano.",
+    aiThought: "Execucao terminou; revisar logs, diff e resultados antes de commit/push/PR.",
+    progressPercent: 100,
+  });
   freshRun.status = "completed";
   freshRun.finishedAt = now();
   freshRun.summary = `${providerResult.summary} Workspace e plano Git preparados; aguardando review humano.`;

@@ -29,13 +29,40 @@ Next.js Dashboard
 
 1. Usuario cria projeto no dashboard.
 2. Usuario cria task vinculada ao projeto.
-3. API salva task como `queued`.
-4. Worker pega proxima task.
-5. Worker cria run e workspace isolado.
-6. Worker registra plano, logs e status.
-7. Quando execucao real estiver habilitada, worker chama provider configurado.
-8. Dashboard mostra fila, runs, logs, diff e metadados Git.
-9. Usuario revisa e aprova commit/push/PR.
+3. API pode decompor a task em story tasks quando `decompose` estiver ativo.
+4. Cada story task e salva como `queued` e aparece como card individual no Kanban.
+5. Worker pega proxima story task.
+6. Worker cria run e workspace isolado.
+7. Worker registra plano, progresso, trabalho atual, pensamento operacional, logs e status.
+8. Quando execucao real estiver habilitada, worker chama provider configurado.
+9. Dashboard mostra fila, runs, logs, diff e metadados Git.
+10. Usuario revisa e aprova commit/push/PR.
+
+## Story Tasks
+
+Uma task Ralph de implementacao pode virar microprocessos rastreaveis:
+
+```text
+Task original
+  -> Story 1/4 escopo
+  -> Story 2/4 backend
+  -> Story 3/4 frontend
+  -> Story 4/4 validacao
+```
+
+Cada story task reutiliza a fila existente e possui metadados opcionais:
+
+- `storyGroupId`
+- `storyParentTitle`
+- `storyIndex`
+- `storyCount`
+- `storyArea`
+- `modelHint`
+- `progressPercent`
+- `currentWork`
+- `aiThought`
+
+`aiThought` guarda resumo operacional exibivel para usuario; nao deve conter raciocinio oculto bruto. Quando o prompt atribui uma area para um modelo, por exemplo `mimo v2.5 pro deve ser responsavel pelo frontend`, a story de frontend recebe provider `mimo` e `modelHint` `mimo v2.5 pro`.
 
 ## Workspaces
 

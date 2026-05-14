@@ -9,6 +9,7 @@ import type {
 } from "@/lib/orchestrator/types";
 
 import {createSupabaseServerClient, isSupabaseConfigured} from "@/lib/orchestrator/supabase";
+import {buildTaskPlan} from "@/lib/orchestrator/task-planning";
 import {randomUUID} from "node:crypto";
 import {copyFile, mkdir, readdir, readFile, rename, rm, writeFile} from "node:fs/promises";
 import path from "node:path";
@@ -47,6 +48,15 @@ type TaskRow = {
   priority: number;
   branch_name?: string | null;
   workspace_path?: string | null;
+  story_group_id?: string | null;
+  story_parent_title?: string | null;
+  story_index?: number | null;
+  story_count?: number | null;
+  story_area?: Task["storyArea"] | null;
+  model_hint?: string | null;
+  progress_percent?: number | null;
+  current_work?: string | null;
+  ai_thought?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -101,6 +111,15 @@ const taskFromRow = (row: TaskRow): Task => ({
   priority: row.priority,
   branchName: row.branch_name ?? undefined,
   workspacePath: row.workspace_path ?? undefined,
+  storyGroupId: row.story_group_id ?? undefined,
+  storyParentTitle: row.story_parent_title ?? undefined,
+  storyIndex: row.story_index ?? undefined,
+  storyCount: row.story_count ?? undefined,
+  storyArea: row.story_area ?? undefined,
+  modelHint: row.model_hint ?? undefined,
+  progressPercent: row.progress_percent ?? undefined,
+  currentWork: row.current_work ?? undefined,
+  aiThought: row.ai_thought ?? undefined,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 });
@@ -437,6 +456,18 @@ export async function createTask(input: {
   provider?: AgentProvider;
   title: string;
 }): Promise<Task> {
+  const tasks = await createTaskPlan({...input, decompose: false});
+  return tasks[0];
+}
+
+export async function createTaskPlan(input: {
+  decompose?: boolean;
+  priority?: number;
+  projectId: string;
+  prompt: string;
+  provider?: AgentProvider;
+  title: string;
+}): Promise<Task[]> {
   const title = input.title.trim();
   const prompt = input.prompt.trim();
   if (!title) throw new Error("Titulo da task obrigatorio.");
@@ -451,40 +482,43 @@ export async function createTask(input: {
   if (!policy) throw new Error("Provider invalido.");
 
   const timestamp = now();
-  const task: Task = {
-    id: randomUUID(),
-    projectId: project.id,
-    title,
+  const tasks = buildTaskPlan({
+    decompose: input.decompose,
+    priority: input.priority,
+    project,
     prompt,
     provider,
-    status: "queued",
-    priority: input.priority ?? 0,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  };
+    timestamp,
+    title,
+  });
+
+  const invalidProvider = tasks.find((task) => !state.providers.some((item) => item.provider === task.provider));
+  if (invalidProvider) throw new Error(`Provider invalido: ${invalidProvider.provider}`);
 
   const supabase = createSupabaseServerClient();
   if (supabase) {
-    const {error} = await supabase.from("ralph_tasks").insert({
-      id: task.id,
-      project_id: task.projectId,
-      title: task.title,
-      prompt: task.prompt,
-      provider: task.provider,
-      status: task.status,
-      priority: task.priority,
-      branch_name: task.branchName ?? null,
-      workspace_path: task.workspacePath ?? null,
-      created_at: task.createdAt,
-      updated_at: task.updatedAt,
-    });
+    const {error} = await supabase.from("ralph_tasks").insert(
+      tasks.map((task) => ({
+        id: task.id,
+        project_id: task.projectId,
+        title: task.title,
+        prompt: task.prompt,
+        provider: task.provider,
+        status: task.status,
+        priority: task.priority,
+        branch_name: task.branchName ?? null,
+        workspace_path: task.workspacePath ?? null,
+        created_at: task.createdAt,
+        updated_at: task.updatedAt,
+      })),
+    );
     if (error) throw new Error(error.message);
-    return task;
+    return tasks;
   }
 
-  state.tasks.unshift(task);
+  state.tasks.unshift(...tasks);
   await writeState(state);
-  return task;
+  return tasks;
 }
 
 export async function appendLog(input: Omit<RunLog, "id" | "createdAt">): Promise<RunLog> {

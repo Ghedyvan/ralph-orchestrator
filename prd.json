@@ -2,11 +2,12 @@
   "project": "ralph-kanban",
   "version": "1.0.0",
   "createdAt": "2026-05-06T03:27:02.908Z",
-  "updatedAt": "2026-05-06T19:04:41.929Z",
+  "updatedAt": "2026-05-14T03:11:17.263Z",
   "activeRequest": {
-    "id": "R008",
-    "text": "Continuar R007: acessar VPS via ssh administrator@93.127.142.13, aplicar correção de clone Git no worker Docker e validar sem expor secrets.",
-    "createdAt": "2026-05-06T18:41:49.999Z"
+    "id": "R009",
+    "text": "Quando o modo ralph está fazendo uma implementação, ele divide em várias stories, ou seja, divide em vários micro processos de implementação. É importante que cada processo desse seja exibido individualmente no kanban. E caso o usuário aperte em cima dele, seja exibido um modal com as informações detalhadas dele, inclusive andamento, o que ta sendo feito, pensamento da ia naquele momento. Deve ser possível atribuir uma tarefa para outro modelo também por exemplo falando assim na task: Faça a implementação da funcionalidade X, o mimo v2.5 pro deve ser o responsável pelo frontend.",
+    "createdAt": "2026-05-14T02:59:35.754Z",
+    "maxStories": null
   },
   "requests": [
     {
@@ -56,6 +57,12 @@
       "text": "Continuar R007: acessar VPS via ssh administrator@93.127.142.13, aplicar correção de clone Git no worker Docker e validar sem expor secrets.",
       "createdAt": "2026-05-06T18:41:49.999Z",
       "status": "blocked"
+    },
+    {
+      "id": "R009",
+      "text": "Quando o modo ralph está fazendo uma implementação, ele divide em várias stories, ou seja, divide em vários micro processos de implementação. É importante que cada processo desse seja exibido individualmente no kanban. E caso o usuário aperte em cima dele, seja exibido um modal com as informações detalhadas dele, inclusive andamento, o que ta sendo feito, pensamento da ia naquele momento. Deve ser possível atribuir uma tarefa para outro modelo também por exemplo falando assim na task: Faça a implementação da funcionalidade X, o mimo v2.5 pro deve ser o responsável pelo frontend.",
+      "createdAt": "2026-05-14T02:59:35.754Z",
+      "status": "done"
     }
   ],
   "stories": [
@@ -643,6 +650,81 @@
       "passes": false,
       "notes": "Worker remoto esta vivo, mas unhealthy por healthcheck HTTP herdado do Dockerfile; ajustando compose.\nHealthcheck correto foi commitado e enviado em 6f9e814, mas Coolify nao redeployou durante a janela de espera. Nao editei docker-compose gerado na VPS porque contem secrets inline. Worker segue vivo, porem unhealthy por healthcheck antigo ate novo redeploy.",
       "updatedAt": "2026-05-06T19:04:41.929Z"
+    },
+    {
+      "id": "S040",
+      "requestId": "R009",
+      "title": "Modelar microprocessos Ralph em tasks rastreaveis",
+      "description": "Adicionar metadados opcionais para que cada microprocesso/story de uma implementacao Ralph possa ser representado como task propria no Kanban.",
+      "acceptanceCriteria": [
+        "Task suporta grupo de story, ordem, total, area, modelHint, progresso, trabalho atual e pensamento operacional resumido.",
+        "Metadados novos sao opcionais para manter tasks antigas funcionando.",
+        "Validação TypeScript cobre os novos tipos."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Iniciando modelo de metadados opcionais para microprocessos Ralph.\nMetadados opcionais adicionados em Task: storyGroupId, storyParentTitle, storyIndex, storyCount, storyArea, modelHint, progressPercent, currentWork e aiThought. Store mapeia campos opcionais quando existirem. Validacoes: yarn typecheck e yarn lint passaram.",
+      "updatedAt": "2026-05-14T03:02:39.785Z"
+    },
+    {
+      "id": "S041",
+      "requestId": "R009",
+      "title": "Criar decomposicao automatica e atribuicao por modelo",
+      "description": "Ao criar uma task Ralph, gerar microprocessos pequenos como tasks separadas e inferir provider/modelo quando o prompt citar responsabilidade por area.",
+      "acceptanceCriteria": [
+        "Task criada pela UI pode gerar cards separados para escopo, backend, frontend e validacao.",
+        "Prompt como 'mimo v2.5 pro deve ser responsavel pelo frontend' atribui o microprocesso frontend ao provider mimo e guarda modelHint.",
+        "Revalidacao e chamadas antigas podem continuar criando uma unica task."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Iniciando decomposicao automatica em story tasks e parser de atribuicao natural por modelo/area.\nCriado buildTaskPlan para decompor tarefas Ralph em 4 story tasks (escopo, backend, frontend, validacao). UI envia decompose true em task/chat; revalidacao mantem task unica. Parser atribui area ao provider/modelHint quando frase cita modelo e area, ex: mimo v2.5 pro no frontend. Validacoes: yarn typecheck e yarn lint passaram.",
+      "updatedAt": "2026-05-14T03:04:47.231Z"
+    },
+    {
+      "id": "S042",
+      "requestId": "R009",
+      "title": "Atualizar worker com andamento de cada microprocesso",
+      "description": "Registrar progresso, trabalho atual e pensamento operacional resumido durante as fases do worker para cada story task.",
+      "acceptanceCriteria": [
+        "Worker atualiza progresso ao preparar workspace, chamar provider e aguardar review.",
+        "Bloqueios registram trabalho atual e pensamento operacional sem vazar secrets.",
+        "Provider recebe contexto de story e modelHint no prompt."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Iniciando atualizacao do worker para registrar progresso, trabalho atual e pensamento operacional por story task.\nWorker agora atualiza progressPercent, currentWork e aiThought nas fases de workspace, Git, provider, bloqueios, timeout e review. Providers recebem contexto de story/modelHint no prompt; HTTP pode usar modelHint como model solicitado. Validacoes: yarn typecheck, yarn lint e yarn worker:once passaram.",
+      "updatedAt": "2026-05-14T03:07:04.484Z"
+    },
+    {
+      "id": "S043",
+      "requestId": "R009",
+      "title": "Exibir microprocessos no Kanban e modal detalhado",
+      "description": "Ajustar cards e modal para mostrar cada story task individualmente com progresso, area, modelo, trabalho atual, pensamento operacional e logs.",
+      "acceptanceCriteria": [
+        "Kanban mostra cards individuais dos microprocessos criados.",
+        "Card exibe indicios de story, area, provider/modelo e progresso.",
+        "Clique abre modal com andamento, o que esta sendo feito, pensamento operacional resumido, runs e logs."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Iniciando ajustes de Kanban/modal para exibir story tasks com progresso, modelo, trabalho atual, pensamento operacional e logs.\nKanban agora apresenta microprocessos com story/area/provider/modelHint/progresso; modal mostra andamento, trabalho atual, pensamento IA operacional, logs e runs. Validacoes: yarn typecheck, yarn lint, yarn build, GET /kanban e GET /api/orchestrator/snapshot passaram.",
+      "updatedAt": "2026-05-14T03:09:52.999Z"
+    },
+    {
+      "id": "S044",
+      "requestId": "R009",
+      "title": "Documentar fluxo de stories e validar",
+      "description": "Documentar o novo fluxo Ralph de microprocessos, registrar progresso e rodar validacoes disponiveis.",
+      "acceptanceCriteria": [
+        "README ou docs explicam que uma task Ralph pode virar varias story tasks no Kanban.",
+        "progress.txt registra decisoes, validacoes e cobertura da solicitacao.",
+        "lint, typecheck e build passam ou bloqueio fica registrado."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Iniciando documentacao do fluxo de microprocessos e validacao final de cobertura.\nDocumentacao atualizada em README.md e docs/orchestrator-architecture.md. Cobertura conferida: microprocessos individuais no Kanban, modal detalhado com andamento/trabalho atual/pensamento IA operacional/logs, atribuicao natural para outro modelo por area. Validacoes finais: yarn lint, yarn typecheck, yarn worker:once, yarn build, GET /kanban e GET /api/orchestrator/snapshot passaram.",
+      "updatedAt": "2026-05-14T03:11:17.263Z"
     }
   ]
 }

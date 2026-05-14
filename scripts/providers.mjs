@@ -33,13 +33,15 @@ const HTTP_CONFIG = {
   },
 };
 
-export function providerReady(provider) {
+export function providerReady(provider, task = null) {
   if (provider === "manual") return true;
   if (COMMAND_ENV[provider]) return Boolean(process.env[COMMAND_ENV[provider]]);
   const envName = PROVIDER_ENV[provider];
   if (!envName || !process.env[envName]) return false;
   const http = HTTP_CONFIG[provider];
-  if (http) return Boolean(process.env[http.url] || http.defaultUrl) && Boolean(process.env[http.model] || http.defaultModel);
+  if (http) {
+    return Boolean(process.env[http.url] || http.defaultUrl) && Boolean(task?.modelHint || process.env[http.model] || http.defaultModel);
+  }
   return false;
 }
 
@@ -86,6 +88,17 @@ export async function runProvider({provider, project, run, task, workspacePath})
     changedFiles: [],
     diffSummary: "Provider invalido.",
   };
+}
+
+function taskContextLines(task) {
+  return [
+    task.storyGroupId ? `Story group: ${task.storyGroupId}` : null,
+    task.storyIndex && task.storyCount ? `Story: ${task.storyIndex}/${task.storyCount}` : null,
+    task.storyArea ? `Story area: ${task.storyArea}` : null,
+    task.storyParentTitle ? `Parent task: ${task.storyParentTitle}` : null,
+    task.modelHint ? `Requested model: ${task.modelHint}` : null,
+    task.currentWork ? `Current work: ${task.currentWork}` : null,
+  ].filter(Boolean);
 }
 
 function parseCommand(command) {
@@ -160,6 +173,7 @@ async function runCliProvider({provider, project, run, task, workspacePath}) {
       `Repo: ${project.repoUrl}`,
       `Run: ${run.id}`,
       `Workspace: ${workspacePath}`,
+      ...taskContextLines(task),
       "",
       task.prompt,
     ].join("\n"),
@@ -172,6 +186,7 @@ async function runCliProvider({provider, project, run, task, workspacePath}) {
     `Repo: ${project.repoUrl}`,
     `Run: ${run.id}`,
     `Workspace: ${workspacePath}`,
+    ...taskContextLines(task),
     "",
     task.prompt,
   ].join("\n");
@@ -205,7 +220,7 @@ async function runCliProvider({provider, project, run, task, workspacePath}) {
 async function runHttpProvider({provider, project, run, task, workspacePath}) {
   const config = HTTP_CONFIG[provider];
   const url = process.env[config.url] || config.defaultUrl;
-  const model = process.env[config.model] || config.defaultModel;
+  const model = task.modelHint || process.env[config.model] || config.defaultModel;
   const apiKey = process.env[PROVIDER_ENV[provider]];
   if (!url || !model || !apiKey) {
     return {
@@ -237,6 +252,7 @@ async function runHttpProvider({provider, project, run, task, workspacePath}) {
             `Repo: ${project.repoUrl}`,
             `Run: ${run.id}`,
             `Workspace: ${workspacePath}`,
+            ...taskContextLines(task),
             "",
             task.prompt,
           ].join("\n"),

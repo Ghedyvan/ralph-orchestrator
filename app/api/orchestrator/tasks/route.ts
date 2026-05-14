@@ -1,7 +1,7 @@
 import type {AgentProvider} from "@/lib/orchestrator/types";
 
 import {isAuthorized, unauthorized} from "@/lib/orchestrator/auth";
-import {createTask, patchTask, readState} from "@/lib/orchestrator/store";
+import {createTaskPlan, patchTask, readState} from "@/lib/orchestrator/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,12 +17,14 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json()) as {
       priority?: number;
+      decompose?: boolean;
       projectId?: string;
       prompt?: string;
       provider?: AgentProvider;
       title?: string;
     };
-    const task = await createTask({
+    const tasks = await createTaskPlan({
+      decompose: body.decompose,
       projectId: body.projectId ?? "",
       title: body.title ?? "",
       prompt: body.prompt ?? "",
@@ -30,7 +32,7 @@ export async function POST(request: Request) {
       priority: body.priority,
     });
 
-    return Response.json({task}, {status: 201});
+    return Response.json({task: tasks[0], tasks}, {status: 201});
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erro desconhecido.";
     return Response.json({error: message}, {status: 400});

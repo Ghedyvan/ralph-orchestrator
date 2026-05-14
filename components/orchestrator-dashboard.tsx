@@ -1,6 +1,6 @@
 "use client";
 
-import type {AgentProvider, DashboardSnapshot, Run, Task, TaskStatus} from "@/lib/orchestrator/types";
+import type {AgentProvider, DashboardSnapshot, Run, RunLog, Task, TaskStatus} from "@/lib/orchestrator/types";
 
 import {usePathname, useRouter} from "next/navigation";
 import {useEffect, useMemo, useState} from "react";
@@ -102,6 +102,45 @@ function StatusChip({status}: {status: string}) {
     <Chip color={color} size="sm" variant="soft">
       <Chip.Label>{status}</Chip.Label>
     </Chip>
+  );
+}
+
+function progressValue(task: Task) {
+  return Math.max(0, Math.min(100, task.progressPercent ?? (task.status === "completed" ? 100 : 0)));
+}
+
+function ProgressLine({value}: {value: number}) {
+  return (
+    <div className="h-2 overflow-hidden rounded-full bg-surface-secondary">
+      <div className="h-full rounded-full bg-accent" style={{width: `${value}%`}} />
+    </div>
+  );
+}
+
+function StoryChips({task}: {task: Task}) {
+  const storyLabel = task.storyIndex && task.storyCount ? `${task.storyIndex}/${task.storyCount}` : null;
+
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {storyLabel ? (
+        <Chip size="sm" variant="secondary">
+          <Chip.Label>Story {storyLabel}</Chip.Label>
+        </Chip>
+      ) : null}
+      {task.storyArea ? (
+        <Chip size="sm" variant="secondary">
+          <Chip.Label>{task.storyArea}</Chip.Label>
+        </Chip>
+      ) : null}
+      <Chip size="sm" variant="secondary">
+        <Chip.Label>{task.provider}</Chip.Label>
+      </Chip>
+      {task.modelHint ? (
+        <Chip size="sm" variant="secondary">
+          <Chip.Label>{task.modelHint}</Chip.Label>
+        </Chip>
+      ) : null}
+    </div>
   );
 }
 
@@ -282,8 +321,8 @@ function TaskForm({
   return (
     <Card>
       <Card.Header>
-        <Card.Title>Nova Task</Card.Title>
-        <Card.Description>Entra na fila do worker 24/7.</Card.Description>
+        <Card.Title>Nova Task Ralph</Card.Title>
+        <Card.Description>Vira stories rastreaveis na fila 24/7.</Card.Description>
       </Card.Header>
       <Card.Content>
         <form action={createTask} className="flex flex-col gap-3">
@@ -371,6 +410,7 @@ function ProjectsList({snapshot}: {snapshot: DashboardSnapshot}) {
 function TaskDetailModal({
   gitAction,
   gitState,
+  logs,
   onAction,
   onClose,
   projectName,
@@ -379,6 +419,7 @@ function TaskDetailModal({
 }: {
   gitAction: (runId: string, action: "status" | "commit" | "push" | "pr") => void;
   gitState: FormState;
+  logs: RunLog[];
   onAction: (taskId: string, action: "cancel" | "retry" | "complete-review") => void;
   onClose: () => void;
   projectName: string;
@@ -387,6 +428,9 @@ function TaskDetailModal({
 }) {
   const taskRuns = task ? runs.filter((run) => run.taskId === task.id) : [];
   const latestRun = taskRuns.at(-1);
+  const taskRunIds = new Set(taskRuns.map((run) => run.id));
+  const taskLogs = logs.filter((log) => taskRunIds.has(log.runId)).slice(-12).reverse();
+  const progress = task ? progressValue(task) : 0;
 
   return (
     <Modal.Backdrop
@@ -410,12 +454,38 @@ function TaskDetailModal({
                 <Chip size="sm" variant="secondary">
                   <Chip.Label>{task?.provider ?? "manual"}</Chip.Label>
                 </Chip>
+                {task?.modelHint ? (
+                  <Chip size="sm" variant="secondary">
+                    <Chip.Label>{task.modelHint}</Chip.Label>
+                  </Chip>
+                ) : null}
               </div>
             </div>
           </Modal.Header>
           <Modal.Body>
             {task ? (
               <div className="grid max-h-[calc(100dvh-220px)] gap-4 overflow-y-auto pr-2">
+              <section className="grid gap-3 rounded-lg bg-surface-secondary p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold">Andamento</p>
+                    <p className="mt-1 truncate text-xs text-muted">{task.storyParentTitle ?? task.title}</p>
+                  </div>
+                  <span className="text-sm font-semibold tabular-nums">{progress}%</span>
+                </div>
+                <ProgressLine value={progress} />
+                <StoryChips task={task} />
+              </section>
+              <section className="grid gap-2 md:grid-cols-2">
+                <div className="rounded-lg bg-surface-secondary p-4">
+                  <p className="text-xs text-muted">Fazendo agora</p>
+                  <p className="mt-2 text-sm leading-6">{task.currentWork ?? "Aguardando inicio."}</p>
+                </div>
+                <div className="rounded-lg bg-surface-secondary p-4">
+                  <p className="text-xs text-muted">Pensamento IA</p>
+                  <p className="mt-2 text-sm leading-6">{task.aiThought ?? "Sem sinal operacional registrado."}</p>
+                </div>
+              </section>
               <section>
                 <p className="text-sm font-semibold">Prompt</p>
                 <pre className="mt-2 max-h-56 overflow-auto rounded-2xl bg-surface-secondary p-4 whitespace-pre-wrap text-sm leading-6 text-muted">
@@ -438,6 +508,25 @@ function TaskDetailModal({
                 <div className="rounded-2xl bg-surface-secondary p-4">
                   <p className="text-xs text-muted">Workspace</p>
                   <p className="mt-1 break-all text-sm">{task.workspacePath ?? "nao iniciado"}</p>
+                </div>
+              </section>
+              <section>
+                <p className="text-sm font-semibold">Logs</p>
+                <div className="mt-2 grid gap-2">
+                  {taskLogs.map((log) => (
+                    <div key={log.id} className="rounded-lg bg-surface-secondary p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <Chip color={log.level === "error" ? "danger" : log.level === "warn" ? "warning" : "default"} size="sm" variant="soft">
+                          <Chip.Label>{log.level}</Chip.Label>
+                        </Chip>
+                        <span className="text-xs text-muted">{log.createdAt}</span>
+                      </div>
+                      <p className="mt-2 text-xs leading-5 text-muted">{log.message}</p>
+                    </div>
+                  ))}
+                  {taskLogs.length === 0 ? (
+                    <p className="rounded-lg bg-surface-secondary p-4 text-sm text-muted">Sem logs ainda.</p>
+                  ) : null}
                 </div>
               </section>
               <section>
@@ -532,6 +621,8 @@ function TaskKanbanCard({
   projectName: string;
   task: Task;
 }) {
+  const progress = progressValue(task);
+
   return (
     <button
       className="flex w-full flex-col gap-3 text-left outline-none"
@@ -543,16 +634,19 @@ function TaskKanbanCard({
         <p className="truncate text-xs text-muted">{projectName}</p>
       </div>
       <p className="line-clamp-3 text-xs leading-5 text-muted">{task.prompt}</p>
-      <div className="flex flex-wrap gap-1.5">
-        <Chip size="sm" variant="secondary">
-          <Chip.Label>{task.provider}</Chip.Label>
-        </Chip>
-        {task.branchName ? (
-          <Chip size="sm" variant="secondary">
-            <Chip.Label>{task.branchName}</Chip.Label>
-          </Chip>
-        ) : null}
+      <div className="grid gap-1">
+        <div className="flex items-center justify-between gap-2 text-xs text-muted">
+          <span className="min-w-0 truncate">{task.currentWork ?? "Aguardando execucao."}</span>
+          <span className="shrink-0 tabular-nums">{progress}%</span>
+        </div>
+        <ProgressLine value={progress} />
       </div>
+      <StoryChips task={task} />
+      {task.branchName ? (
+        <Chip size="sm" variant="secondary">
+          <Chip.Label>{task.branchName}</Chip.Label>
+        </Chip>
+      ) : null}
     </button>
   );
 }
@@ -569,8 +663,8 @@ function KanbanBoard({
   return (
     <Card className="min-h-0 flex-1">
       <Card.Header>
-        <Card.Title>Kanban de Tasks</Card.Title>
-        <Card.Description>{snapshot.tasks.length} tasks por status</Card.Description>
+        <Card.Title>Kanban de Microprocessos</Card.Title>
+        <Card.Description>{snapshot.tasks.length} cards por status</Card.Description>
       </Card.Header>
       <Card.Content className="min-h-0">
         <Kanban hideScrollBar className="h-full min-h-[640px] items-start overflow-visible" isEnabled={false}>
@@ -870,12 +964,13 @@ export function OrchestratorDashboard({
     setTaskState({});
     try {
       await postJson("/api/orchestrator/tasks", {
+        decompose: true,
         projectId: formData.get("projectId"),
         title: formData.get("title"),
         prompt: `${taskTemplates[String(formData.get("template")) as keyof typeof taskTemplates] ?? ""}\n\n${formData.get("prompt")}`,
         provider: formData.get("provider") as AgentProvider,
       });
-      setTaskState({ok: "Task enviada para fila."});
+      setTaskState({ok: "Stories enviadas para fila."});
       await refresh();
     } catch (error) {
       setTaskState({error: error instanceof Error ? error.message : "Erro desconhecido."});
@@ -888,12 +983,13 @@ export function OrchestratorDashboard({
       const prompt = String(formData.get("message") ?? "").trim();
       if (!prompt) throw new Error("Mensagem obrigatoria.");
       await postJson("/api/orchestrator/tasks", {
+        decompose: true,
         projectId: String(formData.get("projectId") ?? ""),
         title: prompt.slice(0, 80),
         prompt: `Comando enviado pelo chat operacional:\n\n${prompt}`,
         provider: formData.get("provider") as AgentProvider,
       });
-      setChatState({ok: "Comando enviado para fila."});
+      setChatState({ok: "Comando dividido em stories."});
       await refresh();
     } catch (error) {
       setChatState({error: error instanceof Error ? error.message : "Erro desconhecido."});
@@ -912,6 +1008,7 @@ export function OrchestratorDashboard({
     if (!run || !task) return;
 
     await postJson("/api/orchestrator/tasks", {
+      decompose: false,
       projectId: run.projectId,
       title: `Revalidar: ${task.title}`,
       provider: "opencode-go",
@@ -1057,6 +1154,10 @@ export function OrchestratorDashboard({
                                   <StatusChip status={task.status} />
                                 </div>
                                 <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted">{task.prompt}</p>
+                                <div className="mt-3 grid gap-2">
+                                  <ProgressLine value={progressValue(task)} />
+                                  <StoryChips task={task} />
+                                </div>
                               </button>
                             );
                           })}
@@ -1083,6 +1184,7 @@ export function OrchestratorDashboard({
       <TaskDetailModal
         gitAction={gitAction}
         gitState={gitState}
+        logs={snapshot.logs}
         onAction={taskAction}
         onClose={() => setSelectedTask(null)}
         projectName={selectedProject?.name ?? selectedTask?.projectId ?? ""}

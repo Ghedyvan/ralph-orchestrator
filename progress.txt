@@ -242,3 +242,19 @@
 - Decisao: em producao, estado local ausente/vazio/invalido passa a ser incidente, nao bootstrap silencioso. Bootstrap vazio exige `RALPH_ALLOW_EMPTY_STATE=1`; reset vazio exige `RALPH_ALLOW_EMPTY_STATE_RESET=1`.
 - Alteracoes: escrita atomica do JSON, backups automaticos em `data/backups/`, restauracao automatica do ultimo backup nao vazio, bloqueio de sobrescrita de estado com dados por estado vazio, `RALPH_DATA_DIR` configuravel no compose e documentacao atualizada.
 - Validacoes locais: `yarn lint`, `yarn typecheck`, `yarn build`, smoke `worker` dev vazio, smoke producao com estado ausente/vazio falhando como esperado, e smoke producao com estado nao vazio criando backup.
+
+2026-05-14 - R009 Microprocessos Ralph no Kanban
+- Solicitacao: quando Ralph dividir uma implementacao em stories/microprocessos, cada processo deve aparecer individualmente no Kanban, abrir modal detalhado com andamento/trabalho atual/pensamento operacional da IA e permitir atribuicao natural para outro modelo, como `mimo v2.5 pro` no frontend.
+- Decisao inicial: representar cada microprocesso como uma `Task` propria, com metadados opcionais de story. Isso reaproveita Kanban, runs, logs, retry, Git e worker existentes sem criar uma segunda fila paralela.
+- Stories planejadas para R009: S040 modelo/metadados, S041 decomposicao e atribuicao por modelo, S042 worker com andamento, S043 Kanban/modal, S044 documentacao e validacao final.
+- S040 concluida: `Task` ganhou metadados opcionais `storyGroupId`, `storyParentTitle`, `storyIndex`, `storyCount`, `storyArea`, `modelHint`, `progressPercent`, `currentWork` e `aiThought`. O store aceita estes campos quando existirem, mantendo tasks antigas validas.
+- Validacoes S040: `yarn typecheck` e `yarn lint` passaram.
+- S041 concluida: `buildTaskPlan` decompõe tasks Ralph em 4 story tasks (escopo, backend, frontend, validacao). UI envia `decompose: true` em task/chat, revalidacao preserva task unica. Parser atribui provider/modelHint por area; exemplo: `mimo v2.5 pro` na frase do frontend vira provider `mimo` e `modelHint` `mimo v2.5 pro`.
+- Validacoes S041: `yarn typecheck` e `yarn lint` passaram.
+- S042 concluida: worker atualiza `progressPercent`, `currentWork` e `aiThought` em preparo de workspace, Git, chamada de provider, bloqueios, timeout e review. Providers recebem contexto de story/modelHint no prompt; provider HTTP pode usar `modelHint` como modelo solicitado.
+- Validacoes S042: `yarn typecheck`, `yarn lint` e `yarn worker:once` passaram. Estado local tinha fila vazia antes do smoke do worker.
+- S043 concluida: Kanban mostra microprocessos como cards com story/area/provider/modelHint/progresso; modal exibe andamento, trabalho atual, pensamento IA operacional, logs e runs.
+- Validacoes S043: `yarn typecheck`, `yarn lint`, `yarn build`, `GET /kanban` e `GET /api/orchestrator/snapshot` passaram. O navegador embutido nao expôs ferramenta de controle nesta sessao, entao a verificacao visual foi substituida por build e smoke HTTP local.
+- S044 concluida: README e docs de arquitetura documentam microprocessos Ralph, campos de story task e atribuicao natural de modelo por area.
+- Validacoes finais R009: `yarn lint`, `yarn typecheck`, `yarn worker:once`, `yarn build`, `GET /kanban` e `GET /api/orchestrator/snapshot` passaram.
+- Cobertura R009: microprocessos individuais no Kanban, modal detalhado com andamento/trabalho atual/pensamento IA operacional/logs e atribuicao natural para outro modelo por area foram implementados. Sem requisitos restantes identificados.
