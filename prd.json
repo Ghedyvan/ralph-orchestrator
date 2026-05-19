@@ -2,7 +2,7 @@
   "project": "ralph-kanban",
   "version": "1.0.0",
   "createdAt": "2026-05-06T03:27:02.908Z",
-  "updatedAt": "2026-05-19T22:01:18.959Z",
+  "updatedAt": "2026-05-19T22:42:44.000Z",
   "activeRequest": {
     "id": "R012",
     "text": "Na tela /projects, auto preencher nome do projeto a partir do repositorio selecionado no GitHub, manter fallback por URL manual para repos externos/nao listados, fazer demais ajustes necessarios e ao final commitar, dar push remoto e redeploy no Coolify.",
@@ -80,7 +80,7 @@
       "id": "R012",
       "text": "Na tela /projects, auto preencher nome do projeto a partir do repositorio selecionado no GitHub, manter fallback por URL manual para repos externos/nao listados, fazer demais ajustes necessarios e ao final commitar, dar push remoto e redeploy no Coolify.",
       "createdAt": "2026-05-19T22:35:00.000Z",
-      "status": "in_progress"
+      "status": "done"
     }
   ],
   "stories": [
@@ -814,10 +814,10 @@
         "Deploy do recurso Coolify conclui com sucesso no commit novo.",
         "Validacao remota comprova que app responde saudavel apos redeploy."
       ],
-      "status": "pending",
-      "passes": false,
-      "notes": "",
-      "updatedAt": "2026-05-19T22:35:00.000Z"
+      "status": "done",
+      "passes": true,
+      "notes": "Commit local da request criado em `d6dd737` e enviado para `origin/main` antes do redeploy. Deploy remoto do app 35 foi reenfileirado no Coolify pelo backend com `deployment_uuid` `q4nvwm2v3gr9dqi7rp044wz1` e concluiu `finished` no commit `d6dd737a4432fc100fb5a662db54cdb93afc2afa`. Validacoes remotas finais: container ativo `ri2kp8vt3lymd4vr9ojs1u8o-224132333382` rodando imagem `ri2kp8vt3lymd4vr9ojs1u8o:d6dd737a4432fc100fb5a662db54cdb93afc2afa`, `https://ralph.depixfy.site` respondeu HTTP 200 e `https://ralph.depixfy.site/api/health` retornou `ok:true`.",
+      "updatedAt": "2026-05-19T22:42:44.000Z"
     }
   ]
 }

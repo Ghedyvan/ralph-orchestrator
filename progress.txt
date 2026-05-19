@@ -291,3 +291,9 @@
 - Validacao de mount: `docker inspect` do container mostrou `volume ri2kp8vt3lymd4vr9ojs1u8o-ralph-data /app/data`.
 - Validacao de persistencia: arquivo `/app/data/.codex-persist-test` criado com conteudo `persist-ok`; apos restart adicional `jx4eimt7j73twm6fnbnrufjv`, novo container `ri2kp8vt3lymd4vr9ojs1u8o-220033673499` manteve o arquivo intacto.
 - Validacoes finais: `https://ralph.depixfy.site` segue 200; `https://ralph.depixfy.site/api/health` segue `ok:true`.
+
+2026-05-19 - R012 Publicacao e redeploy final
+- S049 concluida: request registrada em commit `d6dd737` (`feat: improve project repo selection ux`) e enviada para `origin/main`.
+- Redeploy remoto: app 35 reenfileirado no Coolify com `deployment_uuid` `q4nvwm2v3gr9dqi7rp044wz1`; fila `application_deployment_queues` fechou `finished` no commit `d6dd737a4432fc100fb5a662db54cdb93afc2afa`.
+- Validacao remota: container ativo `ri2kp8vt3lymd4vr9ojs1u8o-224132333382` rodando imagem `ri2kp8vt3lymd4vr9ojs1u8o:d6dd737a4432fc100fb5a662db54cdb93afc2afa`.
+- Healthchecks: `https://ralph.depixfy.site` respondeu HTTP 200 e `https://ralph.depixfy.site/api/health` retornou `{\"ok\":true,\"checks\":{\"datastore\":\"ok\",\"projects\":0,\"tasks\":0},...}`.
