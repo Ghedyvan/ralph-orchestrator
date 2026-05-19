@@ -2,11 +2,11 @@
   "project": "ralph-kanban",
   "version": "1.0.0",
   "createdAt": "2026-05-06T03:27:02.908Z",
-  "updatedAt": "2026-05-14T03:11:17.263Z",
+  "updatedAt": "2026-05-19T21:36:01.686Z",
   "activeRequest": {
-    "id": "R009",
-    "text": "Quando o modo ralph está fazendo uma implementação, ele divide em várias stories, ou seja, divide em vários micro processos de implementação. É importante que cada processo desse seja exibido individualmente no kanban. E caso o usuário aperte em cima dele, seja exibido um modal com as informações detalhadas dele, inclusive andamento, o que ta sendo feito, pensamento da ia naquele momento. Deve ser possível atribuir uma tarefa para outro modelo também por exemplo falando assim na task: Faça a implementação da funcionalidade X, o mimo v2.5 pro deve ser o responsável pelo frontend.",
-    "createdAt": "2026-05-14T02:59:35.754Z",
+    "id": "R010",
+    "text": "Na VPS ssh root@38.49.213.146 tem o projeto chamado ralph-orchestrator:main-ri2kp8vt3lymd4vr9ojs1u8o no coolify, fazer o necessario para que o deploy conclua com sucesso.",
+    "createdAt": "2026-05-19T21:36:01.686Z",
     "maxStories": null
   },
   "requests": [
@@ -62,6 +62,12 @@
       "id": "R009",
       "text": "Quando o modo ralph está fazendo uma implementação, ele divide em várias stories, ou seja, divide em vários micro processos de implementação. É importante que cada processo desse seja exibido individualmente no kanban. E caso o usuário aperte em cima dele, seja exibido um modal com as informações detalhadas dele, inclusive andamento, o que ta sendo feito, pensamento da ia naquele momento. Deve ser possível atribuir uma tarefa para outro modelo também por exemplo falando assim na task: Faça a implementação da funcionalidade X, o mimo v2.5 pro deve ser o responsável pelo frontend.",
       "createdAt": "2026-05-14T02:59:35.754Z",
+      "status": "done"
+    },
+    {
+      "id": "R010",
+      "text": "Na VPS ssh root@38.49.213.146 tem o projeto chamado ralph-orchestrator:main-ri2kp8vt3lymd4vr9ojs1u8o no coolify, fazer o necessario para que o deploy conclua com sucesso.",
+      "createdAt": "2026-05-19T21:36:01.686Z",
       "status": "done"
     }
   ],
@@ -725,6 +731,21 @@
       "passes": true,
       "notes": "Iniciando documentacao do fluxo de microprocessos e validacao final de cobertura.\nDocumentacao atualizada em README.md e docs/orchestrator-architecture.md. Cobertura conferida: microprocessos individuais no Kanban, modal detalhado com andamento/trabalho atual/pensamento IA operacional/logs, atribuicao natural para outro modelo por area. Validacoes finais: yarn lint, yarn typecheck, yarn worker:once, yarn build, GET /kanban e GET /api/orchestrator/snapshot passaram.",
       "updatedAt": "2026-05-14T03:11:17.263Z"
+    },
+    {
+      "id": "S045",
+      "requestId": "R010",
+      "title": "Corrigir build Nixpacks no Coolify e validar deploy",
+      "description": "Diagnosticar falha do build do app no Coolify, ajustar configuracao minima no repo para Node 22 no Nixpacks, validar localmente, publicar commit e confirmar deploy remoto concluido.",
+      "acceptanceCriteria": [
+        "Causa raiz do deploy falho identificada com log real do Coolify.",
+        "Configuracao versionada garante Node compativel com dependencias no build Nixpacks.",
+        "Validacoes locais relevantes passam e deploy remoto conclui com container ativo."
+      ],
+      "status": "in_progress",
+      "passes": null,
+      "notes": "Story iniciada: diagnostico e correcao do deploy no Coolify.\nDeploy 898 falhou em 2026-05-14 porque Nixpacks usou Node 18 e `commander@14.0.3` exige `>=20`. Ajuste planejado: declarar engine minima no package.json e fixar Node 22 via .nvmrc, depois validar, publicar e redeployar.",
+      "updatedAt": "2026-05-19T21:36:01.686Z"
     }
   ]
 }

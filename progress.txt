@@ -258,3 +258,9 @@
 - S044 concluida: README e docs de arquitetura documentam microprocessos Ralph, campos de story task e atribuicao natural de modelo por area.
 - Validacoes finais R009: `yarn lint`, `yarn typecheck`, `yarn worker:once`, `yarn build`, `GET /kanban` e `GET /api/orchestrator/snapshot` passaram.
 - Cobertura R009: microprocessos individuais no Kanban, modal detalhado com andamento/trabalho atual/pensamento IA operacional/logs e atribuicao natural para outro modelo por area foram implementados. Sem requisitos restantes identificados.
+
+2026-05-19 - R010 Correcao deploy Coolify ralph-orchestrator
+- Solicitacao: acessar VPS `root@38.49.213.146` e fazer o deploy do recurso `ralph-orchestrator:main-ri2kp8vt3lymd4vr9ojs1u8o` concluir com sucesso.
+- Diagnostico remoto: recurso Coolify `ri2kp8vt3lymd4vr9ojs1u8o` tinha deploy falho `btycemr28myuxdvhao2b7bzi` (id 898) no commit `077836e386ff22104a19e1386fa7eb44eeb4f137`. Log real do Coolify mostrou Nixpacks usando Node `18.20.5`; `yarn install --frozen-lockfile` falhou porque `commander@14.0.3` exige Node `>=20`.
+- Decisao: mudanca minima e versionada no repo, sem tocar secrets nem `.env`: adicionar `.nvmrc` com `22` e `engines.node >=20` em `package.json`, para o provider Node do Nixpacks selecionar runtime compativel. Referencia oficial consultada: docs do Nixpacks informam override por `engines.node` e `.nvmrc`.
+- Validacoes locais: `yarn lint`, `yarn typecheck` e `yarn build` passaram apos ajuste.

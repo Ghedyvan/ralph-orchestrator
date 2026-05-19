@@ -2,6 +2,9 @@
   "name": "ralph-kanban",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20"
+  },
   "packageManager": "yarn@1.22.22",
   "scripts": {
     "dev": "next dev",
