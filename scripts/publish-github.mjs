@@ -2,19 +2,16 @@
 
 import {execFile} from "node:child_process";
 import {promisify} from "node:util";
+import {getGithubToken} from "./github-auth.mjs";
 
 const execFileAsync = promisify(execFile);
 
-const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
 let owner = process.env.GITHUB_OWNER;
 const repo = process.env.GITHUB_REPO || "ralph-orchestrator";
 const visibility = process.env.GITHUB_PRIVATE === "1" ? "private" : "public";
-
-if (!token) {
-  console.error("GITHUB_TOKEN ou GH_TOKEN obrigatorio.");
-  process.exit(2);
-}
 async function github(path, options = {}) {
+  const token = await getGithubToken();
+  if (!token) throw new Error("Configure token GitHub ou GitHub App antes de publicar.");
   const response = await fetch(`https://api.github.com${path}`, {
     ...options,
     headers: {
@@ -34,7 +31,14 @@ async function github(path, options = {}) {
 }
 
 async function git(args) {
+  const token = await getGithubToken();
+  if (!token) throw new Error("Configure token GitHub ou GitHub App antes de publicar.");
   const {stdout, stderr} = await execFileAsync("git", args, {
+    env: {
+      ...process.env,
+      GCM_INTERACTIVE: "never",
+      GIT_TERMINAL_PROMPT: "0",
+    },
     timeout: 1000 * 60 * 5,
     maxBuffer: 1024 * 1024 * 10,
   });
@@ -62,6 +66,12 @@ if (existing.status === 422 || existing.body.message === "Not Found") {
       private: visibility === "private",
     }),
   });
+}
+
+const token = await getGithubToken();
+if (!token) {
+  console.error("Configure token GitHub ou GitHub App antes de publicar.");
+  process.exit(2);
 }
 
 const remoteUrl = `https://x-access-token:${token}@github.com/${owner}/${repo}.git`;

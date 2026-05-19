@@ -1,4 +1,5 @@
 import type {Run, Task} from "@/lib/orchestrator/types";
+import {getGithubToken} from "@/lib/orchestrator/github-auth";
 
 import {execFile} from "node:child_process";
 import {access, realpath} from "node:fs/promises";
@@ -8,7 +9,6 @@ import {promisify} from "node:util";
 const execFileAsync = promisify(execFile);
 
 const WORKSPACES_DIR = path.join(process.cwd(), "data", "workspaces");
-const GITHUB_TOKEN = process.env.RALPH_GITHUB_TOKEN || process.env.GITHUB_TOKEN || process.env.GH_TOKEN || "";
 const FORBIDDEN_PATHS = (process.env.RALPH_FORBIDDEN_PATHS || ".env,.env.local,.ssh,id_rsa,id_ed25519")
   .split(",")
   .map((item) => item.trim())
@@ -41,9 +41,10 @@ async function runGit(args: string[], cwd: string) {
   }
 }
 
-function githubAuthArgs() {
-  if (!GITHUB_TOKEN) return [];
-  const basicToken = Buffer.from(`x-access-token:${GITHUB_TOKEN}`).toString("base64");
+async function githubAuthArgs() {
+  const token = await getGithubToken();
+  if (!token) return [];
+  const basicToken = Buffer.from(`x-access-token:${token}`).toString("base64");
   return ["-c", `http.https://github.com/.extraheader=Authorization: Basic ${basicToken}`];
 }
 
@@ -52,8 +53,9 @@ async function clearGithubAuthHeader(repoPath: string) {
 }
 
 function sanitizeGitOutput(output: string) {
+  const envToken = process.env.RALPH_GITHUB_TOKEN || process.env.GITHUB_TOKEN || process.env.GH_TOKEN || "";
   return output
-    .replaceAll(GITHUB_TOKEN, "[redacted]")
+    .replaceAll(envToken, "[redacted]")
     .replace(/Authorization: Basic\s+[A-Za-z0-9+/=]+/gi, "Authorization: Basic [redacted]");
 }
 
@@ -74,13 +76,14 @@ function parseGitHubRemote(remoteUrl: string) {
 }
 
 async function githubJson<T>(url: string, init?: RequestInit): Promise<T> {
-  if (!GITHUB_TOKEN) throw new Error("RALPH_GITHUB_TOKEN, GITHUB_TOKEN ou GH_TOKEN obrigatorio para criar PR.");
+  const token = await getGithubToken();
+  if (!token) throw new Error("Configure token GitHub ou GitHub App para criar PR.");
 
   const response = await fetch(url, {
     ...init,
     headers: {
       Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${GITHUB_TOKEN}`,
+      Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
       "User-Agent": "ralph-orchestrator",
       ...init?.headers,
@@ -112,7 +115,7 @@ async function assertBranchHasCommitsForPr(repoPath: string, branch: string, bas
     throw new Error("Nao e possivel criar PR da branch base para ela mesma.");
   }
 
-  await runGit([...githubAuthArgs(), "fetch", "origin", baseBranch], repoPath);
+  await runGit([...(await githubAuthArgs()), "fetch", "origin", baseBranch], repoPath);
   const baseRef = `origin/${baseBranch}`;
   const commitCount = await runGit(["rev-list", "--count", `${baseRef}..${branch}`], repoPath);
 
@@ -195,7 +198,7 @@ export async function pushRunBranch(run: Run, task: Task): Promise<GitActionResu
   const branch = task.branchName || (await runGit(["branch", "--show-current"], repoPath));
   if (!branch) throw new Error("Branch nao encontrada.");
   await clearGithubAuthHeader(repoPath);
-  const output = await runGit([...githubAuthArgs(), "push", "-u", "origin", branch], repoPath);
+  const output = await runGit([...(await githubAuthArgs()), "push", "-u", "origin", branch], repoPath);
   return {output: sanitizeGitOutput(output || `Branch enviada: ${branch}`), remoteBranch: branch};
 }
 
@@ -223,7 +226,7 @@ export async function createRunPullRequest(run: Run, task: Task, baseBranch: str
   if (existingPrUrl) return {output: existingPrUrl, prUrl: existingPrUrl, remoteBranch: branch};
 
   await assertBranchHasCommitsForPr(repoPath, branch, baseBranch);
-  await runGit([...githubAuthArgs(), "push", "-u", "origin", branch], repoPath);
+  await runGit([...(await githubAuthArgs()), "push", "-u", "origin", branch], repoPath);
   try {
     const pr = await githubJson<PullRequestResponse>(`https://api.github.com/repos/${owner}/${repo}/pulls`, {
       body: JSON.stringify({

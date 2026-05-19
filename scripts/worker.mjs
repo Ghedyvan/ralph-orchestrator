@@ -5,6 +5,7 @@ import {execFile} from "node:child_process";
 import {access, copyFile, mkdir, readFile, readdir, rename, rm, writeFile} from "node:fs/promises";
 import path from "node:path";
 import {promisify} from "node:util";
+import {getGithubToken, githubAuthMode} from "./github-auth.mjs";
 import {providerReady, routeProvider, runProvider} from "./providers.mjs";
 
 const ROOT = process.cwd();
@@ -30,7 +31,6 @@ const ALLOWED_COMMANDS = (process.env.RALPH_ALLOWED_COMMANDS || "yarn lint,yarn 
   .split(",")
   .map((item) => item.trim())
   .filter(Boolean);
-const GITHUB_TOKEN = process.env.RALPH_GITHUB_TOKEN || process.env.GITHUB_TOKEN || process.env.GH_TOKEN || "";
 const execFileAsync = promisify(execFile);
 
 const now = () => new Date().toISOString();
@@ -268,7 +268,8 @@ async function pathExists(targetPath) {
 
 function sanitizeGitError(error) {
   const message = error instanceof Error ? error.message : String(error);
-  const sanitized = GITHUB_TOKEN ? message.replaceAll(GITHUB_TOKEN, "[redacted]") : message;
+  const envToken = process.env.RALPH_GITHUB_TOKEN || process.env.GITHUB_TOKEN || process.env.GH_TOKEN || "";
+  const sanitized = envToken ? message.replaceAll(envToken, "[redacted]") : message;
   return sanitized
     .replace(/x-access-token:[^@\\s]+@/g, "x-access-token:[redacted]@")
     .replace(/Authorization: Bearer\s+[^\s]+/gi, "Authorization: Bearer [redacted]")
@@ -298,17 +299,20 @@ function isGitAuthFailure(error) {
 
 function gitAuthHint(repoUrl) {
   if (!repoUrl.startsWith("https://github.com/")) return "";
-  if (!GITHUB_TOKEN) {
-    return " Configure RALPH_GITHUB_TOKEN, GITHUB_TOKEN ou GH_TOKEN no worker com acesso de leitura ao repositorio.";
+  if (githubAuthMode() === "none") {
+    return " Configure token GitHub ou GitHub App no worker com acesso ao repositorio.";
   }
-  return " Verifique se o token configurado no worker tem acesso de leitura ao repositorio.";
+  return githubAuthMode() === "app"
+    ? " Verifique se a instalacao da GitHub App tem acesso ao repositorio privado."
+    : " Verifique se o token configurado no worker tem acesso de leitura ao repositorio.";
 }
 
-function cloneArgs(repoUrl, repoPath, branchName) {
+async function cloneArgs(repoUrl, repoPath, branchName) {
   const baseArgs = ["clone", "--depth", "1"];
   if (branchName) baseArgs.push("--branch", branchName);
-  if (GITHUB_TOKEN && repoUrl.startsWith("https://github.com/")) {
-    const basicToken = Buffer.from(`x-access-token:${GITHUB_TOKEN}`).toString("base64");
+  const token = await getGithubToken();
+  if (token && repoUrl.startsWith("https://github.com/")) {
+    const basicToken = Buffer.from(`x-access-token:${token}`).toString("base64");
     baseArgs.push("-c", `http.https://github.com/.extraheader=Authorization: Basic ${basicToken}`);
   }
   return [...baseArgs, repoUrl, repoPath];
@@ -332,7 +336,7 @@ async function prepareGitWorkspace(state, run, project, task, workspacePath, bra
 
   try {
     if (!(await pathExists(repoPath))) {
-      await runGit(cloneArgs(project.repoUrl, repoPath, project.defaultBranch), ROOT);
+      await runGit(await cloneArgs(project.repoUrl, repoPath, project.defaultBranch), ROOT);
     }
   } catch (error) {
     if (isGitAuthFailure(error)) {
@@ -340,7 +344,7 @@ async function prepareGitWorkspace(state, run, project, task, workspacePath, bra
     }
     addLog(state, run.id, "warn", `Clone com branch ${project.defaultBranch} falhou; tentando clone default. ${sanitizeGitError(error)}`);
     try {
-      await runGit(cloneArgs(project.repoUrl, repoPath), ROOT);
+      await runGit(await cloneArgs(project.repoUrl, repoPath), ROOT);
     } catch (fallbackError) {
       if (isGitAuthFailure(fallbackError)) {
         throw new Error(`Clone Git falhou por autenticacao/acesso.${gitAuthHint(project.repoUrl)} ${sanitizeGitError(fallbackError)}`);
