@@ -1,6 +1,14 @@
 "use client";
 
-import type {AgentProvider, DashboardSnapshot, Run, RunLog, Task, TaskStatus} from "@/lib/orchestrator/types";
+import type {
+  AgentProvider,
+  DashboardSnapshot,
+  GitHubRepositoryOption,
+  Run,
+  RunLog,
+  Task,
+  TaskStatus,
+} from "@/lib/orchestrator/types";
 
 import {usePathname, useRouter} from "next/navigation";
 import {useEffect, useMemo, useState} from "react";
@@ -84,6 +92,16 @@ async function patchJson(url: string, payload: unknown) {
     body: JSON.stringify(payload),
   });
   const body = (await response.json()) as {error?: string};
+  if (!response.ok) throw new Error(body.error ?? "Falha na requisicao.");
+  return body;
+}
+
+async function getJson<T>(url: string) {
+  const token = typeof window === "undefined" ? "" : localStorage.getItem("ralph_admin_token");
+  const response = await fetch(url, {
+    headers: token ? {Authorization: `Bearer ${token}`} : {},
+  });
+  const body = (await response.json()) as T & {error?: string};
   if (!response.ok) throw new Error(body.error ?? "Falha na requisicao.");
   return body;
 }
@@ -255,15 +273,32 @@ function ProjectForm({
   activeProjects,
   auth,
   createProject,
+  githubRepos,
+  githubReposError,
+  githubReposLoading,
   projectState,
   snapshot,
 }: {
   activeProjects: DashboardSnapshot["projects"];
   auth: AuthState;
   createProject: (formData: FormData) => void;
+  githubRepos: GitHubRepositoryOption[];
+  githubReposError?: string;
+  githubReposLoading: boolean;
   projectState: FormState;
   snapshot: DashboardSnapshot;
 }) {
+  const [repoSource, setRepoSource] = useState<"github" | "manual">("github");
+  const [selectedGithubRepoUrl, setSelectedGithubRepoUrl] = useState("");
+  const [manualRepoUrl, setManualRepoUrl] = useState("");
+  const canUseGithubRepos = githubReposLoading || githubRepos.length > 0;
+  const effectiveRepoSource = repoSource === "github" && !canUseGithubRepos ? "manual" : repoSource;
+
+  const selectedGithubRepo = useMemo(
+    () => githubRepos.find((repo) => repo.cloneUrl === selectedGithubRepoUrl),
+    [githubRepos, selectedGithubRepoUrl],
+  );
+
   return (
     <Card>
       <Card.Header>
@@ -273,8 +308,48 @@ function ProjectForm({
       <Card.Content>
         <form action={createProject} className="flex flex-col gap-3">
           <input className={inputClass} name="name" placeholder="Nome" />
-          <input className={inputClass} name="repoUrl" placeholder="Git URL ou caminho" />
-          <input className={inputClass} name="defaultBranch" placeholder="Branch: main" />
+          <select
+            className={inputClass}
+            name="repoSource"
+            onChange={(event) => setRepoSource(event.target.value as "github" | "manual")}
+            value={effectiveRepoSource}
+          >
+            <option value="github" disabled={!canUseGithubRepos}>
+              Repositorio do GitHub vinculado
+            </option>
+            <option value="manual">URL manual / repositorio externo</option>
+          </select>
+          {effectiveRepoSource === "github" ? (
+            <select
+              className={inputClass}
+              name="githubRepoUrl"
+              onChange={(event) => setSelectedGithubRepoUrl(event.target.value)}
+              value={selectedGithubRepoUrl}
+            >
+              <option value="" disabled>
+                {githubReposLoading ? "Carregando repositorios..." : "Selecione um repositorio"}
+              </option>
+              {githubRepos.map((repo) => (
+                <option key={repo.id} value={repo.cloneUrl}>
+                  {repo.fullName} [{repo.visibility}]
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              className={inputClass}
+              name="manualRepoUrl"
+              onChange={(event) => setManualRepoUrl(event.target.value)}
+              placeholder="Git URL ou caminho"
+              value={manualRepoUrl}
+            />
+          )}
+          <input name="selectedRepoDefaultBranch" type="hidden" value={selectedGithubRepo?.defaultBranch ?? ""} />
+          <input
+            className={inputClass}
+            name="defaultBranch"
+            placeholder={`Branch: ${selectedGithubRepo?.defaultBranch ?? "main"}`}
+          />
           <input className={inputClass} name="localPath" placeholder="Path local opcional" />
           <select className={inputClass} name="defaultProvider" defaultValue="manual">
             {snapshot.providers.map((provider) => (
@@ -293,6 +368,7 @@ function ProjectForm({
             name="validationCommands"
             placeholder={"yarn lint\nyarn typecheck\nyarn build"}
           />
+          {githubReposError ? <p className="text-sm text-warning">{githubReposError}</p> : null}
           {projectState.error ? <p className="text-sm text-danger">{projectState.error}</p> : null}
           {projectState.ok ? <p className="text-sm text-success">{projectState.ok}</p> : null}
           <Button isDisabled={auth.enabled && !auth.authorized} type="submit">
@@ -902,6 +978,9 @@ export function OrchestratorDashboard({
   const [taskState, setTaskState] = useState<FormState>({});
   const [chatState, setChatState] = useState<FormState>({});
   const [gitState, setGitState] = useState<FormState>({});
+  const [githubRepos, setGithubRepos] = useState<GitHubRepositoryOption[]>([]);
+  const [githubReposLoading, setGithubReposLoading] = useState(false);
+  const [githubReposError, setGithubReposError] = useState<string>();
   const activeProjects = useMemo(() => snapshot.projects.filter((project) => project.status === "active"), [snapshot.projects]);
   const recentLogs = snapshot.logs.slice(-12).reverse();
   const selectedProject = selectedTask ? snapshot.projects.find((project) => project.id === selectedTask.projectId) : null;
@@ -924,6 +1003,33 @@ export function OrchestratorDashboard({
     return () => events.close();
   }, []);
 
+  useEffect(() => {
+    if (!auth.checked || (auth.enabled && !auth.authorized)) return;
+
+    let active = true;
+
+    void Promise.resolve().then(async () => {
+      if (!active) return;
+      setGithubReposLoading(true);
+      setGithubReposError(undefined);
+      try {
+        const body = await getJson<{repositories: GitHubRepositoryOption[]}>("/api/orchestrator/github/repositories");
+        if (!active) return;
+        setGithubRepos(body.repositories);
+      } catch (error) {
+        if (!active) return;
+        setGithubRepos([]);
+        setGithubReposError(error instanceof Error ? error.message : "Falha ao carregar repositorios.");
+      } finally {
+        if (active) setGithubReposLoading(false);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [auth.authorized, auth.checked, auth.enabled]);
+
   async function login(formData: FormData) {
     const token = String(formData.get("token") ?? "");
     localStorage.setItem("ralph_admin_token", token);
@@ -944,10 +1050,17 @@ export function OrchestratorDashboard({
   async function createProject(formData: FormData) {
     setProjectState({});
     try {
+      const repoSource = String(formData.get("repoSource") ?? "github");
+      const selectedRepoDefaultBranch = String(formData.get("selectedRepoDefaultBranch") ?? "").trim();
+      const githubRepoUrl = String(formData.get("githubRepoUrl") ?? "").trim();
+      const manualRepoUrl = String(formData.get("manualRepoUrl") ?? "").trim();
+      const defaultBranch = String(formData.get("defaultBranch") ?? "").trim() || selectedRepoDefaultBranch;
+      const repoUrl = repoSource === "manual" ? manualRepoUrl : githubRepoUrl;
+
       await postJson("/api/orchestrator/projects", {
         name: formData.get("name"),
-        repoUrl: formData.get("repoUrl"),
-        defaultBranch: formData.get("defaultBranch"),
+        repoUrl,
+        defaultBranch,
         localPath: formData.get("localPath"),
         defaultProvider: formData.get("defaultProvider"),
         autonomyLevel: formData.get("autonomyLevel"),
@@ -1113,6 +1226,9 @@ export function OrchestratorDashboard({
                     activeProjects={activeProjects}
                     auth={auth}
                     createProject={createProject}
+                    githubRepos={githubRepos}
+                    githubReposError={githubReposError}
+                    githubReposLoading={githubReposLoading}
                     projectState={projectState}
                     snapshot={snapshot}
                   />

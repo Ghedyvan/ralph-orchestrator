@@ -40,6 +40,15 @@ export type Project = {
   updatedAt: string;
 };
 
+export type GitHubRepositoryOption = {
+  id: number;
+  name: string;
+  fullName: string;
+  cloneUrl: string;
+  defaultBranch: string;
+  visibility: "public" | "private";
+};
+
 export type Task = {
   id: string;
   projectId: string;

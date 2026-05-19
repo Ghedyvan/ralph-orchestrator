@@ -218,6 +218,11 @@
 - Risco: medio-baixo; a mudanca troca o scaffold visual principal por componentes Pro oficiais. Risco residual concentrado em responsividade/mobile e comportamento de colapso da sidebar em navegadores nao testados visualmente neste container.
 
 2026-05-06 - Container principal full-width
+
+2026-05-19 - Seleção de repositório no /projects
+- Alteracoes: criada rota `GET /api/orchestrator/github/repositories` para listar repos acessíveis via token/GitHub App; `components/orchestrator-dashboard.tsx` agora carrega essa lista e o formulário de `/projects` permite escolher entre `Repositorio do GitHub vinculado` e `URL manual / repositorio externo`.
+- UX: ao selecionar repo do GitHub, o formulário usa `cloneUrl` do repo e sugere a `defaultBranch` real do repositório; fallback manual continua disponível para repos externos ou não listados.
+- Validacoes: `yarn lint`, `yarn typecheck` e `yarn build` passaram.
 - Solicitacao: remover limitacao de largura do container principal que deixava espacos vazios nas laterais.
 - Decisao: ajuste pequeno no shell existente, sem alterar navegacao, sidebar, cards ou dados.
 - Alteracoes: `components/orchestrator-dashboard.tsx` removeu `mx-auto max-w-[1600px]` do wrapper principal, mantendo `w-full` para ocupar toda a largura disponivel.
