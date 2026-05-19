@@ -271,3 +271,12 @@
 - Deploy final `xq0ad85s78rp558219r53mzr` concluido com status `finished`. Container ativo: `ri2kp8vt3lymd4vr9ojs1u8o-215402413583`, imagem `ri2kp8vt3lymd4vr9ojs1u8o:eea37a1352671b9ed7de8aa36594645b3f98d7fe`.
 - Validacoes remotas finais: `https://ralph.depixfy.site` retornou HTTP 200; `https://ralph.depixfy.site/api/health` retornou `{"ok":true,"checks":{"datastore":"ok","projects":0,"tasks":0},...}`.
 - Observacao operacional: app inicializou vazio por design consciente. Ainda nao ha volume persistente dedicado configurado para `/app/data`; se quiser persistencia local entre redeploys sem depender de outro datastore, vale adicionar volume no proprio recurso.
+
+2026-05-19 - R011 Volume persistente Coolify
+- Solicitacao: configurar volume persistente tambem, deixando deploy e persistencia funcionando de forma completa.
+- Diagnostico: app 35 nao tinha registros em `local_persistent_volumes`; compose gerado montava nenhum volume em `/app/data`.
+- Acao: volume nativo do Coolify criado para o app 35 com nome `ri2kp8vt3lymd4vr9ojs1u8o-ralph-data` e `mount_path` `/app/data`.
+- Deploy `vfgortqk0c3nvjj0ah6yrx84` aplicou compose novo com `ri2kp8vt3lymd4vr9ojs1u8o-ralph-data:/app/data`.
+- Validacao de mount: `docker inspect` do container mostrou `volume ri2kp8vt3lymd4vr9ojs1u8o-ralph-data /app/data`.
+- Validacao de persistencia: arquivo `/app/data/.codex-persist-test` criado com conteudo `persist-ok`; apos restart adicional `jx4eimt7j73twm6fnbnrufjv`, novo container `ri2kp8vt3lymd4vr9ojs1u8o-220033673499` manteve o arquivo intacto.
+- Validacoes finais: `https://ralph.depixfy.site` segue 200; `https://ralph.depixfy.site/api/health` segue `ok:true`.

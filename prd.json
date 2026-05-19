@@ -2,11 +2,11 @@
   "project": "ralph-kanban",
   "version": "1.0.0",
   "createdAt": "2026-05-06T03:27:02.908Z",
-  "updatedAt": "2026-05-19T21:55:58.421Z",
+  "updatedAt": "2026-05-19T22:01:18.959Z",
   "activeRequest": {
-    "id": "R010",
-    "text": "Na VPS ssh root@38.49.213.146 tem o projeto chamado ralph-orchestrator:main-ri2kp8vt3lymd4vr9ojs1u8o no coolify, fazer o necessario para que o deploy conclua com sucesso.",
-    "createdAt": "2026-05-19T21:36:01.686Z",
+    "id": "R011",
+    "text": "Configurar volume persistente no Coolify para o ralph-orchestrator e validar persistencia real apos restart/deploy.",
+    "createdAt": "2026-05-19T22:01:18.959Z",
     "maxStories": null
   },
   "requests": [
@@ -68,6 +68,12 @@
       "id": "R010",
       "text": "Na VPS ssh root@38.49.213.146 tem o projeto chamado ralph-orchestrator:main-ri2kp8vt3lymd4vr9ojs1u8o no coolify, fazer o necessario para que o deploy conclua com sucesso.",
       "createdAt": "2026-05-19T21:36:01.686Z",
+      "status": "done"
+    },
+    {
+      "id": "R011",
+      "text": "Configurar volume persistente no Coolify para o ralph-orchestrator e validar persistencia real apos restart/deploy.",
+      "createdAt": "2026-05-19T22:01:18.959Z",
       "status": "done"
     }
   ],
@@ -746,6 +752,21 @@
       "passes": true,
       "notes": "Story iniciada: diagnostico e correcao do deploy no Coolify.\nDeploy 898 falhou em 2026-05-14 porque Nixpacks usou Node 18 e `commander@14.0.3` exige `>=20`.\nAjuste versionado no repo: `.nvmrc` com `22` e `engines.node >=20` em `package.json`. Validacoes locais: `yarn lint`, `yarn typecheck` e `yarn build` passaram.\nCommit `eea37a1` enviado para `origin/main`.\nNo Coolify, foi reenfileirado deploy do commit `eea37a1`; build Node passou, mas o install de `@heroui-pro/react` falhou por ausencia de `HEROUI_AUTH_TOKEN` no app alvo.\nSem expor valor, o build secret `HEROUI_AUTH_TOKEN` foi copiado internamente de outro app Coolify que ja o possuia para o app 35.\nDepois, o app ainda respondia 500 por bootstrap bloqueado de estado vazio em producao. Foram configuradas variaveis de app `RALPH_ALLOW_EMPTY_STATE=1` e `RALPH_DATA_DIR=/app/data` com persistencia criptografada via Laravel/Coolify, seguidas de novo deploy.\nValidacao remota final: deploy `xq0ad85s78rp558219r53mzr` finalizado com status `finished`; container `ri2kp8vt3lymd4vr9ojs1u8o-215402413583` subiu com imagem `eea37a1352671b9ed7de8aa36594645b3f98d7fe`; `https://ralph.depixfy.site` retornou HTTP 200 e `https://ralph.depixfy.site/api/health` retornou `{\"ok\":true,...}`.",
       "updatedAt": "2026-05-19T21:55:58.421Z"
+    },
+    {
+      "id": "S046",
+      "requestId": "R011",
+      "title": "Adicionar volume persistente /app/data no Coolify e validar reinicio",
+      "description": "Criar local persistent volume nativo do Coolify apontando para /app/data, redeployar a aplicacao e validar que o dado persiste apos troca de container.",
+      "acceptanceCriteria": [
+        "O compose gerado do Coolify inclui volume montado em /app/data.",
+        "O container em execucao expõe /app/data como volume Docker nomeado.",
+        "Um arquivo escrito em /app/data continua existindo apos novo restart/deploy do recurso."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Volume local persistente criado no app 35 com nome `ri2kp8vt3lymd4vr9ojs1u8o-ralph-data` e `mount_path` `/app/data`.\nDeploy `vfgortqk0c3nvjj0ah6yrx84` aplicou novo compose contendo `ri2kp8vt3lymd4vr9ojs1u8o-ralph-data:/app/data`.\nValidacao de mount: `docker inspect` do container mostrou `volume ri2kp8vt3lymd4vr9ojs1u8o-ralph-data /app/data`.\nArquivo sentinela `/app/data/.codex-persist-test` criado com conteudo `persist-ok`.\nApos restart adicional (`jx4eimt7j73twm6fnbnrufjv`), novo container `ri2kp8vt3lymd4vr9ojs1u8o-220033673499` manteve o arquivo sentinela e `api/health` continuou `ok:true`.",
+      "updatedAt": "2026-05-19T22:01:18.959Z"
     }
   ]
 }
