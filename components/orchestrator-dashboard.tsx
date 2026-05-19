@@ -106,6 +106,13 @@ async function getJson<T>(url: string) {
   return body;
 }
 
+function inferProjectName(repoUrl: string) {
+  const normalized = repoUrl.trim().replace(/\/+$/, "");
+  if (!normalized) return "";
+  const lastSegment = normalized.split("/").pop() ?? normalized;
+  return lastSegment.replace(/\.git$/i, "") || "";
+}
+
 function StatusChip({status}: {status: string}) {
   const color =
     status === "completed" || status === "active"
@@ -289,7 +296,11 @@ function ProjectForm({
   snapshot: DashboardSnapshot;
 }) {
   const [repoSource, setRepoSource] = useState<"github" | "manual">("github");
+  const [projectName, setProjectName] = useState("");
+  const [projectNameTouched, setProjectNameTouched] = useState(false);
   const [selectedGithubRepoUrl, setSelectedGithubRepoUrl] = useState("");
+  const [defaultBranch, setDefaultBranch] = useState("");
+  const [defaultBranchTouched, setDefaultBranchTouched] = useState(false);
   const [manualRepoUrl, setManualRepoUrl] = useState("");
   const canUseGithubRepos = githubReposLoading || githubRepos.length > 0;
   const effectiveRepoSource = repoSource === "github" && !canUseGithubRepos ? "manual" : repoSource;
@@ -298,6 +309,9 @@ function ProjectForm({
     () => githubRepos.find((repo) => repo.cloneUrl === selectedGithubRepoUrl),
     [githubRepos, selectedGithubRepoUrl],
   );
+  const createDisabled =
+    (auth.enabled && !auth.authorized) ||
+    (effectiveRepoSource === "github" ? !selectedGithubRepoUrl && !githubReposLoading : !manualRepoUrl.trim());
 
   return (
     <Card>
@@ -307,7 +321,16 @@ function ProjectForm({
       </Card.Header>
       <Card.Content>
         <form action={createProject} className="flex flex-col gap-3">
-          <input className={inputClass} name="name" placeholder="Nome" />
+          <input
+            className={inputClass}
+            name="name"
+            onChange={(event) => {
+              setProjectName(event.target.value);
+              setProjectNameTouched(true);
+            }}
+            placeholder="Nome"
+            value={projectName}
+          />
           <select
             className={inputClass}
             name="repoSource"
@@ -323,7 +346,13 @@ function ProjectForm({
             <select
               className={inputClass}
               name="githubRepoUrl"
-              onChange={(event) => setSelectedGithubRepoUrl(event.target.value)}
+              onChange={(event) => {
+                const nextRepoUrl = event.target.value;
+                const nextRepo = githubRepos.find((repo) => repo.cloneUrl === nextRepoUrl);
+                setSelectedGithubRepoUrl(nextRepoUrl);
+                if (nextRepo && (!projectNameTouched || !projectName.trim())) setProjectName(nextRepo.name);
+                if (nextRepo && (!defaultBranchTouched || !defaultBranch.trim())) setDefaultBranch(nextRepo.defaultBranch);
+              }}
               value={selectedGithubRepoUrl}
             >
               <option value="" disabled>
@@ -348,7 +377,12 @@ function ProjectForm({
           <input
             className={inputClass}
             name="defaultBranch"
+            onChange={(event) => {
+              setDefaultBranch(event.target.value);
+              setDefaultBranchTouched(true);
+            }}
             placeholder={`Branch: ${selectedGithubRepo?.defaultBranch ?? "main"}`}
+            value={defaultBranch}
           />
           <input className={inputClass} name="localPath" placeholder="Path local opcional" />
           <select className={inputClass} name="defaultProvider" defaultValue="manual">
@@ -371,7 +405,7 @@ function ProjectForm({
           {githubReposError ? <p className="text-sm text-warning">{githubReposError}</p> : null}
           {projectState.error ? <p className="text-sm text-danger">{projectState.error}</p> : null}
           {projectState.ok ? <p className="text-sm text-success">{projectState.ok}</p> : null}
-          <Button isDisabled={auth.enabled && !auth.authorized} type="submit">
+          <Button isDisabled={createDisabled} type="submit">
             <CirclePlus />
             Criar Projeto
           </Button>
@@ -1056,11 +1090,19 @@ export function OrchestratorDashboard({
       const manualRepoUrl = String(formData.get("manualRepoUrl") ?? "").trim();
       const defaultBranch = String(formData.get("defaultBranch") ?? "").trim() || selectedRepoDefaultBranch;
       const repoUrl = repoSource === "manual" ? manualRepoUrl : githubRepoUrl;
+      const explicitName = String(formData.get("name") ?? "").trim();
+      const githubRepo = githubRepos.find((repo) => repo.cloneUrl === githubRepoUrl);
+      const name = explicitName || githubRepo?.name || inferProjectName(repoUrl);
+
+      if (!repoUrl) {
+        throw new Error(repoSource === "manual" ? "URL do repositorio obrigatoria." : "Selecione um repositorio do GitHub.");
+      }
+      if (!name) throw new Error("Nome do projeto obrigatorio.");
 
       await postJson("/api/orchestrator/projects", {
-        name: formData.get("name"),
+        name,
         repoUrl,
-        defaultBranch,
+        defaultBranch: defaultBranch || "main",
         localPath: formData.get("localPath"),
         defaultProvider: formData.get("defaultProvider"),
         autonomyLevel: formData.get("autonomyLevel"),

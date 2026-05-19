@@ -4,9 +4,9 @@
   "createdAt": "2026-05-06T03:27:02.908Z",
   "updatedAt": "2026-05-19T22:01:18.959Z",
   "activeRequest": {
-    "id": "R011",
-    "text": "Configurar volume persistente no Coolify para o ralph-orchestrator e validar persistencia real apos restart/deploy.",
-    "createdAt": "2026-05-19T22:01:18.959Z",
+    "id": "R012",
+    "text": "Na tela /projects, auto preencher nome do projeto a partir do repositorio selecionado no GitHub, manter fallback por URL manual para repos externos/nao listados, fazer demais ajustes necessarios e ao final commitar, dar push remoto e redeploy no Coolify.",
+    "createdAt": "2026-05-19T22:35:00.000Z",
     "maxStories": null
   },
   "requests": [
@@ -75,6 +75,12 @@
       "text": "Configurar volume persistente no Coolify para o ralph-orchestrator e validar persistencia real apos restart/deploy.",
       "createdAt": "2026-05-19T22:01:18.959Z",
       "status": "done"
+    },
+    {
+      "id": "R012",
+      "text": "Na tela /projects, auto preencher nome do projeto a partir do repositorio selecionado no GitHub, manter fallback por URL manual para repos externos/nao listados, fazer demais ajustes necessarios e ao final commitar, dar push remoto e redeploy no Coolify.",
+      "createdAt": "2026-05-19T22:35:00.000Z",
+      "status": "in_progress"
     }
   ],
   "stories": [
@@ -767,6 +773,51 @@
       "passes": true,
       "notes": "Volume local persistente criado no app 35 com nome `ri2kp8vt3lymd4vr9ojs1u8o-ralph-data` e `mount_path` `/app/data`.\nDeploy `vfgortqk0c3nvjj0ah6yrx84` aplicou novo compose contendo `ri2kp8vt3lymd4vr9ojs1u8o-ralph-data:/app/data`.\nValidacao de mount: `docker inspect` do container mostrou `volume ri2kp8vt3lymd4vr9ojs1u8o-ralph-data /app/data`.\nArquivo sentinela `/app/data/.codex-persist-test` criado com conteudo `persist-ok`.\nApos restart adicional (`jx4eimt7j73twm6fnbnrufjv`), novo container `ri2kp8vt3lymd4vr9ojs1u8o-220033673499` manteve o arquivo sentinela e `api/health` continuou `ok:true`.",
       "updatedAt": "2026-05-19T22:01:18.959Z"
+    },
+    {
+      "id": "S047",
+      "requestId": "R012",
+      "title": "Auto preencher nome e branch no formulario de projeto",
+      "description": "Quando usuario selecionar repositorio GitHub no /projects, preencher nome do projeto a partir do repo e usar branch padrao real sem remover possibilidade de edicao manual.",
+      "acceptanceCriteria": [
+        "Selecao de repo GitHub preenche nome do projeto automaticamente quando campo ainda nao foi editado manualmente.",
+        "Branch padrao real do repositorio e aplicada de forma visivel e editavel.",
+        "Modo URL manual continua funcionando para repos externos ou nao listados."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Formulario /projects agora preenche `name` automaticamente com o nome do repo GitHub selecionado quando usuario ainda nao editou campo manualmente. `defaultBranch` tambem passa a ser aplicada a partir do repo escolhido, mas segue totalmente editavel. Fallback de URL manual mantido sem regressao. Validacoes: `yarn lint`, `yarn typecheck` e `yarn build` passaram.",
+      "updatedAt": "2026-05-19T22:40:00.000Z"
+    },
+    {
+      "id": "S048",
+      "requestId": "R012",
+      "title": "Polir UX e validacao do fluxo de selecao de repositorio",
+      "description": "Ajustar estados de formulario, mensagens e payload para evitar envio inconsistente entre modo GitHub e modo manual.",
+      "acceptanceCriteria": [
+        "Formulario nao envia URL vazia quando usuario escolhe GitHub ou manual.",
+        "Mensagens de erro carregamento GitHub nao quebram fluxo manual.",
+        "Validacoes locais do projeto passam apos ajustes."
+      ],
+      "status": "done",
+      "passes": true,
+      "notes": "Fluxo do formulario foi polido para evitar envio inconsistente. Botao de criacao respeita modo GitHub/manual, `createProject` agora valida selecao de repo antes do POST, infere nome por fallback quando possivel e trata melhor carregamento/erro de lista GitHub sem bloquear URL manual. Validacoes: `yarn lint`, `yarn typecheck` e `yarn build` passaram.",
+      "updatedAt": "2026-05-19T22:44:00.000Z"
+    },
+    {
+      "id": "S049",
+      "requestId": "R012",
+      "title": "Publicar, redeployar no Coolify e validar remoto",
+      "description": "Gerar commit final da request, enviar para origin/main, acionar redeploy do recurso no Coolify e validar interface remota.",
+      "acceptanceCriteria": [
+        "Commit final da request existe no Git local e foi enviado para origin/main.",
+        "Deploy do recurso Coolify conclui com sucesso no commit novo.",
+        "Validacao remota comprova que app responde saudavel apos redeploy."
+      ],
+      "status": "pending",
+      "passes": false,
+      "notes": "",
+      "updatedAt": "2026-05-19T22:35:00.000Z"
     }
   ]
 }

@@ -223,6 +223,12 @@
 - Alteracoes: criada rota `GET /api/orchestrator/github/repositories` para listar repos acessíveis via token/GitHub App; `components/orchestrator-dashboard.tsx` agora carrega essa lista e o formulário de `/projects` permite escolher entre `Repositorio do GitHub vinculado` e `URL manual / repositorio externo`.
 - UX: ao selecionar repo do GitHub, o formulário usa `cloneUrl` do repo e sugere a `defaultBranch` real do repositório; fallback manual continua disponível para repos externos ou não listados.
 - Validacoes: `yarn lint`, `yarn typecheck` e `yarn build` passaram.
+
+2026-05-19 - R012 UX do /projects e redeploy
+- Solicitacao: auto preencher nome do projeto na tela `/projects` a partir do repositorio GitHub selecionado, manter fallback por URL manual, fazer ajustes necessarios, commitar, dar push e redeploy no Coolify.
+- S047 concluida: `components/orchestrator-dashboard.tsx` agora preenche `name` com `repo.name` e `defaultBranch` com branch real do repo GitHub selecionado enquanto usuario nao sobrescreve manualmente. Campo continua editavel.
+- S048 concluida: fluxo ficou mais robusto; botao de criar respeita modo GitHub/manual, envio vazio e barrado antes do POST, `createProject` infere `name` por fallback quando possivel e erro de carregamento dos repos GitHub nao bloqueia URL manual.
+- Validacoes locais apos cada story: `yarn lint`, `yarn typecheck` e `yarn build` passaram.
 - Solicitacao: remover limitacao de largura do container principal que deixava espacos vazios nas laterais.
 - Decisao: ajuste pequeno no shell existente, sem alterar navegacao, sidebar, cards ou dados.
 - Alteracoes: `components/orchestrator-dashboard.tsx` removeu `mx-auto max-w-[1600px]` do wrapper principal, mantendo `w-full` para ocupar toda a largura disponivel.
