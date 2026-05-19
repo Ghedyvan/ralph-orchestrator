@@ -264,3 +264,10 @@
 - Diagnostico remoto: recurso Coolify `ri2kp8vt3lymd4vr9ojs1u8o` tinha deploy falho `btycemr28myuxdvhao2b7bzi` (id 898) no commit `077836e386ff22104a19e1386fa7eb44eeb4f137`. Log real do Coolify mostrou Nixpacks usando Node `18.20.5`; `yarn install --frozen-lockfile` falhou porque `commander@14.0.3` exige Node `>=20`.
 - Decisao: mudanca minima e versionada no repo, sem tocar secrets nem `.env`: adicionar `.nvmrc` com `22` e `engines.node >=20` em `package.json`, para o provider Node do Nixpacks selecionar runtime compativel. Referencia oficial consultada: docs do Nixpacks informam override por `engines.node` e `.nvmrc`.
 - Validacoes locais: `yarn lint`, `yarn typecheck` e `yarn build` passaram apos ajuste.
+- Ajuste versionado no repo para destravar Nixpacks: `.nvmrc` com `22` e `engines.node >=20` em `package.json`. Commit `eea37a1` enviado para `origin/main`.
+- Recurso Coolify `ri2kp8vt3lymd4vr9ojs1u8o` nao recebeu webhook automatico; deploys foram reenfileirados pelo backend do Coolify.
+- Novo diagnostico remoto: apos corrigir Node, o build falhou em `@heroui-pro/react` por falta de `HEROUI_AUTH_TOKEN` no app 35. Secret ja existia em outro app Coolify (`application 33`); foi copiado internamente para o app alvo sem expor valor.
+- Runtime ainda falhava com `Estado local ausente em producao`. Foram adicionadas no app 35 as vars `RALPH_ALLOW_EMPTY_STATE=1` e `RALPH_DATA_DIR=/app/data`, com valores persistidos pelo mecanismo criptografado do Laravel/Coolify.
+- Deploy final `xq0ad85s78rp558219r53mzr` concluido com status `finished`. Container ativo: `ri2kp8vt3lymd4vr9ojs1u8o-215402413583`, imagem `ri2kp8vt3lymd4vr9ojs1u8o:eea37a1352671b9ed7de8aa36594645b3f98d7fe`.
+- Validacoes remotas finais: `https://ralph.depixfy.site` retornou HTTP 200; `https://ralph.depixfy.site/api/health` retornou `{"ok":true,"checks":{"datastore":"ok","projects":0,"tasks":0},...}`.
+- Observacao operacional: app inicializou vazio por design consciente. Ainda nao ha volume persistente dedicado configurado para `/app/data`; se quiser persistencia local entre redeploys sem depender de outro datastore, vale adicionar volume no proprio recurso.
