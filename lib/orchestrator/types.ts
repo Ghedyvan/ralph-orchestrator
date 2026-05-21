@@ -108,6 +108,12 @@ export type ProviderPolicy = {
   enabled: boolean;
 };
 
+export type WorkerHealth = {
+  status: "running" | "stale" | "missing";
+  lastHeartbeatAt?: string;
+  staleAfterMs: number;
+};
+
 export type OrchestratorState = {
   version: number;
   projects: Project[];
@@ -118,6 +124,7 @@ export type OrchestratorState = {
 };
 
 export type DashboardSnapshot = OrchestratorState & {
+  worker: WorkerHealth;
   totals: {
     projects: number;
     queued: number;

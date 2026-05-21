@@ -219,6 +219,13 @@
 
 2026-05-06 - Container principal full-width
 
+2026-05-21 - R009 Diagnostico de fila travada em queued na VPS
+- Diagnostico remoto: SSH em `root@38.49.213.146` confirmou que o projeto `ralph` (`ralph.depixfy.site`) estava com apenas um container web ativo (`yarn run start`). Nao havia servico/container `worker` desse app em execucao, entao nenhuma task tinha consumidor de fila.
+- Evidencia remota: `docker ps -a --filter label=coolify.projectName=ralph` retornou somente o container `ri2kp8vt3lymd4vr9ojs1u8o-224334944806`; os logs mostraram apenas `next start`, sem `Ralph worker iniciado`.
+- Alteracoes: worker agora grava heartbeat em `data/worker-heartbeat.json`; `getSnapshot` e `/api/health` expõem status `running|stale|missing`; dashboard mostra banner quando o worker nao e detectado; README documenta que deploy single-service no Coolify nao consome fila.
+- Validacoes: `yarn lint`, `yarn typecheck`, `yarn build` e `yarn worker:once` passaram.
+- Proximo passo operacional: subir um segundo servico no Coolify com comando `npm run worker`, compartilhando o mesmo volume `RALPH_DATA_DIR` do web, e depois reenfileirar/retry das tasks presas.
+
 2026-05-19 - Seleção de repositório no /projects
 - Alteracoes: criada rota `GET /api/orchestrator/github/repositories` para listar repos acessíveis via token/GitHub App; `components/orchestrator-dashboard.tsx` agora carrega essa lista e o formulário de `/projects` permite escolher entre `Repositorio do GitHub vinculado` e `URL manual / repositorio externo`.
 - UX: ao selecionar repo do GitHub, o formulário usa `cloneUrl` do repo e sugere a `defaultBranch` real do repositório; fallback manual continua disponível para repos externos ou não listados.

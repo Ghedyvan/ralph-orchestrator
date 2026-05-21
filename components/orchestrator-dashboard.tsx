@@ -202,6 +202,39 @@ function Summary({snapshot}: {snapshot: DashboardSnapshot}) {
   );
 }
 
+function WorkerStatusBanner({snapshot}: {snapshot: DashboardSnapshot}) {
+  if (snapshot.worker.status === "running") return null;
+
+  const lastHeartbeat =
+    snapshot.worker.lastHeartbeatAt
+      ? new Date(snapshot.worker.lastHeartbeatAt).toLocaleString("pt-BR")
+      : "nenhum heartbeat encontrado";
+  const title = snapshot.worker.status === "stale" ? "Worker sem heartbeat recente" : "Worker nao detectado";
+  const detail =
+    snapshot.worker.status === "stale"
+      ? `Ultimo heartbeat em ${lastHeartbeat}.`
+      : "A fila so avanca quando o processo `npm run worker` esta ativo e escrevendo heartbeat no mesmo `RALPH_DATA_DIR` do web.";
+  const queueDetail =
+    snapshot.totals.queued > 0
+      ? `${snapshot.totals.queued} task(s) seguem em queued aguardando consumo da fila.`
+      : "Ainda nao ha tasks presas em queued.";
+
+  return (
+    <Card className="border border-warning/40 bg-warning/10">
+      <Card.Content className="flex flex-col gap-2 p-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1">
+          <p className="text-sm font-semibold text-warning-700">{title}</p>
+          <p className="text-sm text-foreground">{detail}</p>
+          <p className="text-sm text-muted">{queueDetail}</p>
+        </div>
+        <Chip color="warning" size="sm" variant="soft">
+          <Chip.Label>{snapshot.worker.status}</Chip.Label>
+        </Chip>
+      </Card.Content>
+    </Card>
+  );
+}
+
 function PageHeader({
   description,
   title,
@@ -1238,6 +1271,8 @@ export function OrchestratorDashboard({
 
           {auth.checked && auth.enabled && !auth.authorized ? null : (
             <div className="flex min-h-0 flex-1 flex-col gap-4">
+              <WorkerStatusBanner snapshot={snapshot} />
+
               {view === "overview" ? (
                 <>
                   <Summary snapshot={snapshot} />

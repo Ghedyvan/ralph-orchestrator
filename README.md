@@ -243,6 +243,20 @@ Modo Docker Compose:
 docker compose up -d --build
 ```
 
+Se voce publicar no Coolify como app unica com comando `yarn start`, a UI sobe mas a fila nao anda: as tasks ficam em `queued` porque nao existe processo `worker` consumindo a fila. Em producao, publique:
+
+- `web` com `yarn start`
+- `worker` com `npm run worker`
+- mesmo `RALPH_DATA_DIR` persistente montado nos dois servicos
+
+Depois do deploy, valide o health:
+
+```bash
+curl https://seu-dominio/api/health
+```
+
+O retorno agora inclui `worker: running|stale|missing`.
+
 ## HeroUI Pro no Coolify
 
 HeroUI Pro baixa os componentes durante `npm ci`. Em deploy non-interactive, use o token de CI/CD:

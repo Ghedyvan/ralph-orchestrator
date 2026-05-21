@@ -6,6 +6,7 @@ import type {
   Run,
   RunLog,
   Task,
+  WorkerHealth,
 } from "@/lib/orchestrator/types";
 
 import {createSupabaseServerClient, isSupabaseConfigured} from "@/lib/orchestrator/supabase";
@@ -20,6 +21,8 @@ const DATA_DIR = process.env.RALPH_DATA_DIR
 const STATE_PATH = path.join(DATA_DIR, "orchestrator-state.json");
 const STATE_BACKUP_DIR = path.join(DATA_DIR, "backups");
 const STATE_BACKUP_LIMIT = 30;
+const WORKER_HEARTBEAT_PATH = path.join(DATA_DIR, "worker-heartbeat.json");
+const DEFAULT_WORKER_STALE_AFTER_MS = Number(process.env.RALPH_WORKER_STALE_AFTER_MS || 45_000);
 
 const now = () => new Date().toISOString();
 const backupStamp = () => now().replace(/[:.]/g, "-");
@@ -263,6 +266,32 @@ async function writeStateBackup(contents: string) {
   await pruneStateBackups();
 }
 
+async function getWorkerHealth(): Promise<WorkerHealth> {
+  try {
+    const raw = await readFile(WORKER_HEARTBEAT_PATH, "utf8");
+    const parsed = JSON.parse(raw) as {heartbeatAt?: string; intervalMs?: number};
+    const heartbeatAt = typeof parsed.heartbeatAt === "string" ? parsed.heartbeatAt : "";
+    const reportedIntervalMs = typeof parsed.intervalMs === "number" ? parsed.intervalMs : 0;
+    const staleAfterMs = Math.max(DEFAULT_WORKER_STALE_AFTER_MS, reportedIntervalMs * 3, 15_000);
+
+    if (!heartbeatAt) return {status: "missing", staleAfterMs};
+
+    const heartbeatTime = new Date(heartbeatAt).getTime();
+    if (Number.isNaN(heartbeatTime)) return {status: "missing", staleAfterMs};
+
+    return {
+      status: Date.now() - heartbeatTime > staleAfterMs ? "stale" : "running",
+      lastHeartbeatAt: heartbeatAt,
+      staleAfterMs,
+    };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return {status: "missing", staleAfterMs: Math.max(DEFAULT_WORKER_STALE_AFTER_MS, 15_000)};
+    }
+    throw error;
+  }
+}
+
 async function latestNonEmptyStateBackup(): Promise<OrchestratorState | null> {
   const entries = await readdir(STATE_BACKUP_DIR).catch(() => []);
   const backups = entries
@@ -382,9 +411,11 @@ export async function writeState(state: OrchestratorState) {
 
 export async function getSnapshot(): Promise<DashboardSnapshot> {
   const state = await readState();
+  const worker = await getWorkerHealth();
 
   return {
     ...state,
+    worker,
     totals: {
       projects: state.projects.filter((project) => project.status === "active").length,
       queued: state.tasks.filter((task) => task.status === "queued").length,

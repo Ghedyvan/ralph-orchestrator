@@ -6,6 +6,7 @@ build/
 *.tsbuildinfo
 data/orchestrator-state.json
 data/orchestrator-state.*
+data/worker-heartbeat.json
 data/backups/
 data/workspaces/
 

@@ -3,6 +3,7 @@
 import {randomUUID} from "node:crypto";
 import {execFile} from "node:child_process";
 import {access, copyFile, mkdir, readFile, readdir, rename, rm, writeFile} from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import {promisify} from "node:util";
 import {getGithubToken, githubAuthMode} from "./github-auth.mjs";
@@ -14,6 +15,7 @@ const STATE_PATH = path.join(DATA_DIR, "orchestrator-state.json");
 const STATE_BACKUP_DIR = path.join(DATA_DIR, "backups");
 const STATE_BACKUP_LIMIT = 30;
 const WORKSPACES_DIR = path.join(DATA_DIR, "workspaces");
+const HEARTBEAT_PATH = path.join(DATA_DIR, "worker-heartbeat.json");
 const ONCE = process.argv.includes("--once");
 const INTERVAL_MS = Number(process.env.RALPH_WORKER_INTERVAL_MS || 5000);
 const TASK_TIMEOUT_MS = Number(process.env.RALPH_TASK_TIMEOUT_MS || 1000 * 60 * 30);
@@ -35,6 +37,7 @@ const execFileAsync = promisify(execFile);
 
 const now = () => new Date().toISOString();
 const backupStamp = () => now().replace(/[:.]/g, "-");
+const WORKER_STARTED_AT = now();
 
 function initialState() {
   return {
@@ -128,6 +131,27 @@ async function writeFileAtomic(filePath, contents) {
   const tempPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
   await writeFile(tempPath, contents);
   await rename(tempPath, filePath);
+}
+
+async function writeWorkerHeartbeat(extra = {}) {
+  await mkdir(DATA_DIR, {recursive: true});
+  await writeFileAtomic(
+    HEARTBEAT_PATH,
+    `${JSON.stringify(
+      {
+        startedAt: WORKER_STARTED_AT,
+        heartbeatAt: now(),
+        intervalMs: INTERVAL_MS,
+        once: ONCE,
+        realRunEnabled: REAL_RUN_ENABLED,
+        pid: process.pid,
+        hostname: os.hostname(),
+        ...extra,
+      },
+      null,
+      2,
+    )}\n`,
+  );
 }
 
 async function pruneStateBackups() {
@@ -586,9 +610,11 @@ async function processOne() {
 }
 
 async function main() {
+  await writeWorkerHeartbeat({status: "starting"});
   console.log(`Ralph worker iniciado. once=${ONCE} realRun=${REAL_RUN_ENABLED}`);
   do {
     const processed = await processOne();
+    await writeWorkerHeartbeat({status: processed ? "processed" : "idle"});
     if (ONCE) {
       console.log(processed ? "Task processada." : "Fila vazia.");
       return;
@@ -597,7 +623,16 @@ async function main() {
   } while (true);
 }
 
-main().catch((error) => {
+main().catch(async (error) => {
+  try {
+    await writeWorkerHeartbeat({
+      status: "error",
+      error: error instanceof Error ? error.message : String(error),
+      failedAt: now(),
+    });
+  } catch {
+    // Ignora falha secundaria ao registrar heartbeat de erro.
+  }
   console.error(error);
   process.exit(1);
 });

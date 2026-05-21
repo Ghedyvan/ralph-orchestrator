@@ -1,4 +1,4 @@
-import {readState} from "@/lib/orchestrator/store";
+import {getSnapshot} from "@/lib/orchestrator/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -6,14 +6,16 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const startedAt = Date.now();
   try {
-    const state = await readState();
+    const snapshot = await getSnapshot();
     return Response.json({
       ok: true,
       checks: {
         datastore: "ok",
-        projects: state.projects.length,
-        tasks: state.tasks.length,
+        projects: snapshot.projects.length,
+        tasks: snapshot.tasks.length,
+        worker: snapshot.worker.status,
       },
+      worker: snapshot.worker,
       latencyMs: Date.now() - startedAt,
       timestamp: new Date().toISOString(),
     });
