@@ -79,6 +79,29 @@ function runCodex(args, input, env) {
   });
 }
 
+function providerEnvironment(initialBranch) {
+  // O worker ainda precisa de credenciais para clonar repositórios privados. O agente provider,
+  // porém, nunca recebe essas credenciais: isso impede publicação até se tentar ignorar o shim Git.
+  const {
+    RALPH_GITHUB_TOKEN: _ralphGithubToken,
+    GITHUB_TOKEN: _githubToken,
+    GH_TOKEN: _ghToken,
+    GIT_ASKPASS: _gitAskPass,
+    SSH_ASKPASS: _sshAskPass,
+    SSH_AUTH_SOCK: _sshAuthSock,
+    ...safeEnvironment
+  } = process.env;
+
+  return {
+    ...safeEnvironment,
+    RALPH_ACTIVE: "1",
+    RALPH_CURRENT_BRANCH: initialBranch,
+    RALPH_EXPLICIT_PUSH: "0",
+    GIT_TERMINAL_PROMPT: "0",
+    GCM_INTERACTIVE: "never",
+  };
+}
+
 const originalPrompt = await readStdin();
 const inRepository = insideGitRepository();
 const initialBranch = inRepository ? currentBranch() : "";
@@ -99,13 +122,7 @@ const policy = [
   "",
 ].join("\n");
 
-const childEnv = {
-  ...process.env,
-  RALPH_ACTIVE: "1",
-  RALPH_CURRENT_BRANCH: initialBranch,
-  RALPH_EXPLICIT_PUSH: "0",
-};
-
+const childEnv = providerEnvironment(initialBranch);
 const result = await runCodex(process.argv.slice(2), `${policy}${originalPrompt}`, childEnv);
 if (result.code !== 0) process.exit(result.code);
 
