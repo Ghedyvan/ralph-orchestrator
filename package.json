@@ -12,6 +12,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "test:ralph-git-policy": "bash scripts/test-ralph-git-guard.sh",
     "worker": "node scripts/worker.mjs",
     "worker:once": "node scripts/worker.mjs --once",
     "publish:github": "node scripts/publish-github.mjs"
