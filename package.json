@@ -8,13 +8,13 @@
   "packageManager": "yarn@1.22.22",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node scripts/build-worker-current-branch.mjs && node --check scripts/worker.current-branch.mjs && next build",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test:ralph-git-policy": "bash scripts/test-ralph-git-guard.sh",
-    "worker": "node scripts/worker.mjs",
-    "worker:once": "node scripts/worker.mjs --once",
+    "test:ralph-git-policy": "bash scripts/test-ralph-git-guard.sh && bash scripts/test-ralph-policy.sh && node scripts/build-worker-current-branch.mjs && node --check scripts/worker.current-branch.mjs && node scripts/test-worker-current-branch.mjs",
+    "worker": "node scripts/build-worker-current-branch.mjs && node scripts/worker.current-branch.mjs",
+    "worker:once": "node scripts/build-worker-current-branch.mjs && node scripts/worker.current-branch.mjs --once",
     "publish:github": "node scripts/publish-github.mjs"
   },
   "dependencies": {
