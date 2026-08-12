@@ -15,4 +15,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
       - name: Validate Ralph Git policy
-        run: npm run test:ralph-git-policy
+        run: |
+          chmod +x \
+            scripts/docker-entrypoint.sh \
+            scripts/install-ralph-skill.sh \
+            scripts/ralph-git-guard.sh \
+            scripts/codex-ralph-wrapper.mjs \
+            scripts/test-ralph-git-guard.sh \
+            scripts/test-ralph-policy.sh
+          npm run test:ralph-git-policy
