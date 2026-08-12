@@ -6,7 +6,8 @@ export RALPH_SKILL_SOURCE_DIR="${RALPH_SKILL_SOURCE_DIR:-/opt/ralph-skills}"
 export RALPH_GIT_ENABLED="${RALPH_GIT_ENABLED:-1}"
 export RALPH_GIT_AUTO_COMMIT_ENABLED="${RALPH_GIT_AUTO_COMMIT_ENABLED:-1}"
 
-/app/scripts/install-ralph-skill.sh
+APP_ROOT="${RALPH_APP_ROOT:-/app}"
+"$APP_ROOT/scripts/install-ralph-skill.sh"
 
 case "${CODEX_COMMAND:-}" in
   "")
