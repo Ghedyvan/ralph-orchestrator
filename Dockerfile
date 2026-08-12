@@ -14,7 +14,11 @@ RUN npm run build
 FROM node:22-bookworm-slim AS runner
 WORKDIR /app
 ARG HEROUI_AUTH_TOKEN
-ENV NODE_ENV=production
+ENV NODE_ENV=production \
+    RALPH_GIT_ENABLED=1 \
+    RALPH_GIT_AUTO_COMMIT_ENABLED=1 \
+    RALPH_GIT_PUSH_ENABLED=0 \
+    RALPH_EXPLICIT_PUSH=0
 RUN apt-get update \
   && apt-get install -y --no-install-recommends bash bubblewrap ca-certificates git wget \
   && npm install -g @openai/codex@0.128.0 --no-audit --no-fund \

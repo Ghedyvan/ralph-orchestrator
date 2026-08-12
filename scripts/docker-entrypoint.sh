@@ -3,6 +3,8 @@ set -euo pipefail
 
 export RALPH_ACTIVE="${RALPH_ACTIVE:-1}"
 export RALPH_SKILL_SOURCE_DIR="${RALPH_SKILL_SOURCE_DIR:-/opt/ralph-skills}"
+export RALPH_GIT_ENABLED="${RALPH_GIT_ENABLED:-1}"
+export RALPH_GIT_AUTO_COMMIT_ENABLED="${RALPH_GIT_AUTO_COMMIT_ENABLED:-1}"
 
 /app/scripts/install-ralph-skill.sh
 
