@@ -118,7 +118,7 @@ entry_output="$({
   "$ENTRYPOINT" /usr/bin/env
 } 2>/dev/null)"
 
-grep -q '^CODEX_COMMAND=env -u RALPH_GITHUB_TOKEN -u GITHUB_TOKEN -u GH_TOKEN ' <<<"$entry_output" || fail "entrypoint did not sanitize Codex command"
+grep -q '^CODEX_COMMAND=codex-ralph exec -$' <<<"$entry_output" || fail "entrypoint did not route Codex through the protected wrapper"
 grep -q '^RALPH_EXPLICIT_PUSH=0$' <<<"$entry_output" || fail "explicit push default is not disabled"
 [[ -f "$home/.agents/skills/ralph-loop/SKILL.md" ]] || fail "ralph-loop was not installed"
 [[ -f "$home/.agents/skills/ralph-codex/SKILL.md" ]] || fail "ralph-codex was not installed"
