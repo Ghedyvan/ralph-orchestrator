@@ -9,6 +9,7 @@ data/orchestrator-state.*
 data/worker-heartbeat.json
 data/backups/
 data/workspaces/
+scripts/worker.current-branch.mjs
 
 .env*
 !.env.example
