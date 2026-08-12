@@ -1,0 +1,117 @@
+name: Normalize Ralph current-branch finalization
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/apply-ralph-current-branch-policy-v4.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-ralph-current-branch-policy-v4
+  cancel-in-progress: false
+
+jobs:
+  normalize:
+    if: github.repository == 'Ghedyvan/ralph-orchestrator'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Normalize success-path metadata
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          worker_path = Path('scripts/worker.mjs')
+          source = worker_path.read_text()
+          if 'async function finalizeGitWorkspace(' not in source:
+              raise RuntimeError('The current-branch worker migration is not present; refusing a partial normalization.')
+
+          metadata_block = (
+              '  freshRun.branchName = finalGitResult.branchName;\n'
+              '  freshRun.commitShas = finalGitResult.commitShas;\n'
+              '  const commitText = finalGitResult.commitShas.length\n'
+              '    ? `Commits locais: ${finalGitResult.commitShas.join(", ")}.`\n'
+              '    : "Nenhum novo commit local foi necessario.";\n'
+          )
+
+          # Remove a block that a previous migration could have placed in an
+          # early failure path. It will be reinserted only in the success path.
+          source = source.replace(metadata_block, '')
+
+          success_prefix = (
+              '  freshRun.status = "completed";\n'
+              '  freshRun.finishedAt = now();\n'
+          )
+          success_replacement = success_prefix + metadata_block
+          if metadata_block not in source:
+              if source.count(success_prefix) != 1:
+                  raise RuntimeError('Unable to identify the unique completed-run success block.')
+              source = source.replace(success_prefix, success_replacement, 1)
+
+          worker_path.write_text(source)
+
+          test_path = Path('scripts/test-worker-current-branch-policy.mjs')
+          test_path.write_text('\n'.join([
+              '#!/usr/bin/env node',
+              'import assert from "node:assert/strict";',
+              'import {readFileSync} from "node:fs";',
+              '',
+              'const source = readFileSync(new URL("./worker.mjs", import.meta.url), "utf8");',
+              'assert.doesNotMatch(source, /ralph\\/task-\\$\\{task\\.id/);',
+              'assert.doesNotMatch(source, /runGit\\(\\["checkout", "-B"/);',
+              'assert.match(source, /const GIT_AUTO_COMMIT_ENABLED/);',
+              'assert.match(source, /async function finalizeGitWorkspace/);',
+              'assert.match(source, /branch", "--show-current"/);',
+              'assert.match(source, /Push nao realizado/);',
+              '',
+              'const processStart = source.indexOf("async function processOne()");',
+              'const processEnd = source.indexOf("async function main()", processStart);',
+              'assert.ok(processStart >= 0 && processEnd > processStart);',
+              'const processSource = source.slice(processStart, processEnd);',
+              'const finalResultDeclaration = processSource.indexOf("let finalGitResult;");',
+              'const completedRun = processSource.indexOf("freshRun.status = \\"completed\\";");',
+              'const commitText = processSource.indexOf("const commitText =");',
+              'const successSummary = processSource.indexOf("Branch preservada: ${finalGitResult.branchName}");',
+              'assert.ok(finalResultDeclaration >= 0);',
+              'assert.equal(processSource.slice(0, finalResultDeclaration).includes("finalGitResult"), false);',
+              'assert.equal((processSource.match(/const commitText =/g) || []).length, 1);',
+              'assert.ok(completedRun >= 0 && commitText > completedRun && successSummary > commitText);',
+              'console.log("Ralph worker current-branch policy: OK");',
+              '',
+          ]))
+          PY
+
+      - name: Validate all Git policy paths
+        shell: bash
+        run: |
+          node --check scripts/worker.mjs
+          node scripts/test-worker-current-branch-policy.mjs
+          bash scripts/test-ralph-git-guard.sh
+
+      - name: Commit normalized implementation and remove migrations
+        shell: bash
+        run: |
+          rm -f .github/workflows/apply-ralph-current-branch-policy.yml
+          rm -f .github/workflows/apply-ralph-current-branch-policy-v2.yml
+          rm -f .github/workflows/apply-ralph-current-branch-policy-v3.yml
+          rm -f .github/workflows/apply-ralph-current-branch-policy-v4.yml
+          git config user.name "Ralph Policy Maintainer"
+          git config user.email "ralph-policy@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Policy already normalized."
+            exit 0
+          fi
+          git commit -m "Normalize Ralph local commit finalization"
+          git push origin HEAD:main
