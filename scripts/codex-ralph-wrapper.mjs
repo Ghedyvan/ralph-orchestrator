@@ -134,7 +134,7 @@ if (!inRepository) {
 
 const finalBranch = currentBranch();
 if (!initialBranch) {
-  console.error(`Ralph: detached HEAD ou branch ausente; nenhum commit automático foi criado.");
+  console.error("Ralph: detached HEAD ou branch ausente; nenhum commit automático foi criado.");
   process.exit(0);
 }
 if (finalBranch !== initialBranch) {
