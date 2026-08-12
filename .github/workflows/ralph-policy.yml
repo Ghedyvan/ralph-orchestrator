@@ -5,22 +5,26 @@ on:
     paths:
       - ".agents/skills/ralph-loop/**"
       - ".agents/skills/ralph-codex/**"
+      - "scripts/worker.mjs"
       - "scripts/ralph-git-guard.sh"
       - "scripts/codex-ralph-wrapper.mjs"
       - "scripts/docker-entrypoint.sh"
       - "scripts/install-ralph-skill.sh"
       - "scripts/test-ralph-policy.sh"
+      - "scripts/test-ralph-git-guard.sh"
       - "Dockerfile"
       - ".github/workflows/ralph-policy.yml"
   pull_request:
     paths:
       - ".agents/skills/ralph-loop/**"
       - ".agents/skills/ralph-codex/**"
+      - "scripts/worker.mjs"
       - "scripts/ralph-git-guard.sh"
       - "scripts/codex-ralph-wrapper.mjs"
       - "scripts/docker-entrypoint.sh"
       - "scripts/install-ralph-skill.sh"
       - "scripts/test-ralph-policy.sh"
+      - "scripts/test-ralph-git-guard.sh"
       - "Dockerfile"
       - ".github/workflows/ralph-policy.yml"
   workflow_dispatch:
