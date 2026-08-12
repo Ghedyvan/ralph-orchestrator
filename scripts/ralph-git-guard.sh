@@ -53,8 +53,10 @@ case "$command_name" in
     ;;
   reset)
     if has_arg "--hard" "$@"; then
-      log_block "git reset --hard bloqueado para preservar alterações."
-      exit 2
+      # O worker antigo usa reset --hard ao reutilizar um workspace. O comando vira
+      # no-op para preservar o estado sem interromper a execução ou trocar de branch.
+      log_block "git reset --hard ignorado para preservar a branch e as alterações atuais."
+      exit 0
     fi
     exec "$REAL_GIT" reset "$@"
     ;;
