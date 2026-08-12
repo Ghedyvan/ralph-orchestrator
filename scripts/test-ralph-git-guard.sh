@@ -146,8 +146,8 @@ grep -q 'Push não realizado' "$TEST_ROOT/wrapper.err"
 # A skill ativa e o alias ralph-codex devem ser instalados de forma idempotente.
 [[ -f "$SOURCE_DIR/ralph-loop/SKILL.md" ]]
 [[ -f "$SOURCE_DIR/ralph-codex/SKILL.md" ]]
-HOME="$TEST_ROOT/home" RALPH_SKILL_SOURCE_DIR="$SOURCE_DIR" "$INSTALLER" >/dev/null
-HOME="$TEST_ROOT/home" RALPH_SKILL_SOURCE_DIR="$SOURCE_DIR" "$INSTALLER" >/dev/null
+HOME="$TEST_ROOT/home" RALPH_SKILL_SOURCE_DIR="$SOURCE_DIR" bash "$INSTALLER" >/dev/null
+HOME="$TEST_ROOT/home" RALPH_SKILL_SOURCE_DIR="$SOURCE_DIR" bash "$INSTALLER" >/dev/null
 [[ -f "$TEST_ROOT/home/.agents/skills/ralph-loop/SKILL.md" ]]
 [[ -f "$TEST_ROOT/home/.agents/skills/ralph-codex/SKILL.md" ]]
 [[ "$(grep -c '<!-- RALPH_GIT_POLICY_START -->' "$TEST_ROOT/home/.codex/AGENTS.md")" -eq 1 ]]
