@@ -1,0 +1,27 @@
+name: Ralph Git Policy
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  current-branch-policy:
+    name: Current branch, local commit, no push
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate Ralph Git policy
+        run: npm run test:ralph-git-policy
