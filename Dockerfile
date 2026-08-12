@@ -18,10 +18,13 @@ ENV NODE_ENV=production \
     RALPH_GIT_ENABLED=1 \
     RALPH_GIT_AUTO_COMMIT_ENABLED=1 \
     RALPH_GIT_PUSH_ENABLED=0 \
-    RALPH_EXPLICIT_PUSH=0
+    RALPH_EXPLICIT_PUSH=0 \
+    RALPH_REAL_GIT=/usr/local/libexec/ralph-git-real
 RUN apt-get update \
   && apt-get install -y --no-install-recommends bash bubblewrap ca-certificates git wget \
   && npm install -g @openai/codex@0.128.0 --no-audit --no-fund \
+  && install -d /usr/local/libexec \
+  && mv /usr/bin/git "$RALPH_REAL_GIT" \
   && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
@@ -36,6 +39,7 @@ RUN chmod +x \
       /app/scripts/ralph-git-guard.sh \
       /app/scripts/codex-ralph-wrapper.mjs \
       /app/scripts/test-ralph-git-guard.sh \
+  && ln -sf /app/scripts/ralph-git-guard.sh /usr/bin/git \
   && ln -sf /app/scripts/ralph-git-guard.sh /usr/local/bin/git \
   && ln -sf /app/scripts/codex-ralph-wrapper.mjs /usr/local/bin/codex-ralph \
   && npm run test:ralph-git-policy

@@ -1,10 +1,14 @@
 #!/usr/bin/env node
 
+import {existsSync} from "node:fs";
 import {spawn, spawnSync} from "node:child_process";
 import process from "node:process";
 
+const DEFAULT_REAL_GIT = existsSync("/usr/local/libexec/ralph-git-real")
+  ? "/usr/local/libexec/ralph-git-real"
+  : "/usr/bin/git";
 const REAL_CODEX = process.env.RALPH_CODEX_BIN || "/usr/local/bin/codex";
-const REAL_GIT = process.env.RALPH_REAL_GIT || "/usr/bin/git";
+const REAL_GIT = process.env.RALPH_REAL_GIT || DEFAULT_REAL_GIT;
 const FORBIDDEN_PATHS = (process.env.RALPH_FORBIDDEN_PATHS || ".env,.env.local,.ssh,id_rsa,id_ed25519")
   .split(",")
   .map((item) => item.trim())
@@ -79,29 +83,6 @@ function runCodex(args, input, env) {
   });
 }
 
-function providerEnvironment(initialBranch) {
-  // O worker ainda precisa de credenciais para clonar repositórios privados. O agente provider,
-  // porém, nunca recebe essas credenciais: isso impede publicação até se tentar ignorar o shim Git.
-  const {
-    RALPH_GITHUB_TOKEN: _ralphGithubToken,
-    GITHUB_TOKEN: _githubToken,
-    GH_TOKEN: _ghToken,
-    GIT_ASKPASS: _gitAskPass,
-    SSH_ASKPASS: _sshAskPass,
-    SSH_AUTH_SOCK: _sshAuthSock,
-    ...safeEnvironment
-  } = process.env;
-
-  return {
-    ...safeEnvironment,
-    RALPH_ACTIVE: "1",
-    RALPH_CURRENT_BRANCH: initialBranch,
-    RALPH_EXPLICIT_PUSH: "0",
-    GIT_TERMINAL_PROMPT: "0",
-    GCM_INTERACTIVE: "never",
-  };
-}
-
 const originalPrompt = await readStdin();
 const inRepository = insideGitRepository();
 const initialBranch = inRepository ? currentBranch() : "";
@@ -122,7 +103,27 @@ const policy = [
   "",
 ].join("\n");
 
-const childEnv = providerEnvironment(initialBranch);
+const childEnv = {
+  ...process.env,
+  RALPH_ACTIVE: "1",
+  RALPH_CURRENT_BRANCH: initialBranch,
+  RALPH_EXPLICIT_PUSH: "0",
+};
+// O agente não precisa conhecer o caminho do binário Git real usado internamente
+// pelo wrapper. As chamadas Git do agente devem passar pelo guard disponível no PATH.
+delete childEnv.RALPH_REAL_GIT;
+for (const secretName of [
+  "RALPH_GITHUB_TOKEN",
+  "GITHUB_TOKEN",
+  "GH_TOKEN",
+  "GIT_ASKPASS",
+  "SSH_ASKPASS",
+]) {
+  delete childEnv[secretName];
+}
+childEnv.GIT_TERMINAL_PROMPT = "0";
+childEnv.GCM_INTERACTIVE = "never";
+
 const result = await runCodex(process.argv.slice(2), `${policy}${originalPrompt}`, childEnv);
 if (result.code !== 0) process.exit(result.code);
 
@@ -133,7 +134,7 @@ if (!inRepository) {
 
 const finalBranch = currentBranch();
 if (!initialBranch) {
-  console.error("Ralph: detached HEAD ou branch ausente; nenhum commit automático foi criado.");
+  console.error(`Ralph: detached HEAD ou branch ausente; nenhum commit automático foi criado.");
   process.exit(0);
 }
 if (finalBranch !== initialBranch) {

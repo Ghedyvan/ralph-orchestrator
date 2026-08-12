@@ -1,0 +1,18 @@
+name: Ralph Git Policy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  policy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Validate Ralph Git policy
+        run: npm run test:ralph-git-policy

@@ -2,107 +2,155 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 GUARD="$SCRIPT_DIR/ralph-git-guard.sh"
 WRAPPER="$SCRIPT_DIR/codex-ralph-wrapper.mjs"
 INSTALLER="$SCRIPT_DIR/install-ralph-skill.sh"
-REAL_GIT="${RALPH_REAL_GIT:-/usr/bin/git}"
+REAL_GIT="${RALPH_REAL_GIT:-}"
+if [[ -z "$REAL_GIT" ]]; then
+  if [[ -x /usr/local/libexec/ralph-git-real ]]; then
+    REAL_GIT=/usr/local/libexec/ralph-git-real
+  else
+    REAL_GIT=/usr/bin/git
+  fi
+fi
 NODE_BIN="${NODE_BIN:-node}"
-SOURCE_DIR="${RALPH_SMOKE_SKILL_SOURCE:-/opt/ralph-skills}"
-TMP_ROOT="$(mktemp -d)"
-trap 'rm -rf "$TMP_ROOT"' EXIT
+if [[ -n "${RALPH_SMOKE_SKILL_SOURCE:-}" ]]; then
+  SOURCE_DIR="$RALPH_SMOKE_SKILL_SOURCE"
+elif [[ -d /opt/ralph-skills ]]; then
+  SOURCE_DIR=/opt/ralph-skills
+else
+  SOURCE_DIR="$REPO_ROOT/.agents/skills"
+fi
 
-BIN_DIR="$TMP_ROOT/bin"
-GUARD_REPO="$TMP_ROOT/guard-repo"
-WRAPPER_REPO="$TMP_ROOT/wrapper-repo"
-HOME_DIR="$TMP_ROOT/home"
-mkdir -p "$BIN_DIR" "$GUARD_REPO" "$WRAPPER_REPO" "$HOME_DIR"
-ln -s "$GUARD" "$BIN_DIR/git"
+bash -n "$GUARD" "$INSTALLER"
+"$NODE_BIN" --check "$WRAPPER"
+[[ -x "$REAL_GIT" ]]
 
-assert_status() {
-  local expected="$1"
-  shift
-  set +e
-  "$@" >/dev/null 2>&1
-  local status=$?
-  set -e
-  [[ "$status" -eq "$expected" ]]
+# Dentro da imagem, o Git real fica fora do PATH e os caminhos usuais apontam
+# para o guard. Isso evita que o agente ignore a política chamando /usr/bin/git.
+if [[ "$REAL_GIT" == /usr/local/libexec/ralph-git-real ]]; then
+  [[ "$(readlink -f /usr/bin/git)" == "$(readlink -f "$GUARD")" ]]
+  [[ "$(readlink -f /usr/local/bin/git)" == "$(readlink -f "$GUARD")" ]]
+fi
+
+TEST_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TEST_ROOT"' EXIT
+mkdir -p "$TEST_ROOT/repo" "$TEST_ROOT/bin" "$TEST_ROOT/home"
+ln -s "$GUARD" "$TEST_ROOT/bin/git"
+
+"$REAL_GIT" -C "$TEST_ROOT/repo" init -b main -q
+printf 'base\n' > "$TEST_ROOT/repo/base.txt"
+"$REAL_GIT" -C "$TEST_ROOT/repo" add base.txt
+"$REAL_GIT" -C "$TEST_ROOT/repo" -c user.name=Test -c user.email=test@example.invalid commit -qm initial
+
+run_guard() {
+  PATH="$TEST_ROOT/bin:$PATH" RALPH_REAL_GIT="$REAL_GIT" "$GUARD" "$@"
 }
 
-# 1. O guard deve bloquear mutações de branch, reset destrutivo e push,
-# inclusive quando o Git recebe opções globais antes do subcomando.
-cd "$GUARD_REPO"
-"$REAL_GIT" init -q -b main
-"$REAL_GIT" -c user.name=Smoke -c user.email=smoke@example.invalid commit --allow-empty -q -m initial
-PATH="$BIN_DIR:$PATH" RALPH_REAL_GIT="$REAL_GIT" git checkout -B ralph/test >/dev/null 2>&1
-[[ "$("$REAL_GIT" branch --show-current)" == "main" ]]
-PATH="$BIN_DIR:$PATH" RALPH_REAL_GIT="$REAL_GIT" git -c advice.detachedHead=false checkout -b ralph/other >/dev/null 2>&1
-[[ "$("$REAL_GIT" branch --show-current)" == "main" ]]
-PATH="$BIN_DIR:$PATH" RALPH_REAL_GIT="$REAL_GIT" git -C "$GUARD_REPO" switch -c ralph/third >/dev/null 2>&1
-[[ "$("$REAL_GIT" branch --show-current)" == "main" ]]
-assert_status 2 env PATH="$BIN_DIR:$PATH" RALPH_REAL_GIT="$REAL_GIT" git branch ralph/fourth
-assert_status 2 env PATH="$BIN_DIR:$PATH" RALPH_REAL_GIT="$REAL_GIT" git push origin main
-assert_status 2 env PATH="$BIN_DIR:$PATH" RALPH_REAL_GIT="$REAL_GIT" git -c http.fake.example.extraheader=test push origin main
-printf 'conteudo\n' > guard.txt
-"$REAL_GIT" add guard.txt
-"$REAL_GIT" -c user.name=Smoke -c user.email=smoke@example.invalid commit -q -m local
-printf 'preservado\n' >> guard.txt
-PATH="$BIN_DIR:$PATH" RALPH_REAL_GIT="$REAL_GIT" git -c advice.detachedHead=false reset --hard HEAD >/dev/null 2>&1
-grep -q '^preservado$' guard.txt
+# Opções globais antes do subcomando não podem contornar a política. Checkout e
+# switch viram no-op com sucesso para manter compatibilidade com o worker legado.
+run_guard -C "$TEST_ROOT/repo" checkout -B ralph/forbidden >/dev/null 2>"$TEST_ROOT/checkout.err"
+run_guard -C "$TEST_ROOT/repo" switch -c ralph/switch-bypass >/dev/null 2>"$TEST_ROOT/switch.err"
+[[ "$("$REAL_GIT" -C "$TEST_ROOT/repo" branch --show-current)" == main ]]
+! "$REAL_GIT" -C "$TEST_ROOT/repo" show-ref --verify --quiet refs/heads/ralph/forbidden
+! "$REAL_GIT" -C "$TEST_ROOT/repo" show-ref --verify --quiet refs/heads/ralph/switch-bypass
 
-# 2. O wrapper deve capturar a branch atual, bloquear comandos do agente e
-# criar o commit local nessa mesma branch, sem push.
-cat > "$BIN_DIR/mock-codex" <<'MOCK'
+# Alias injetado por -c não pode esconder checkout, update-ref ou push.
+set +e
+run_guard -C "$TEST_ROOT/repo" -c alias.evil='checkout -B ralph/alias-bypass' evil >/dev/null 2>"$TEST_ROOT/alias.err"
+alias_status=$?
+set -e
+[[ "$alias_status" -eq 2 ]]
+! "$REAL_GIT" -C "$TEST_ROOT/repo" show-ref --verify --quiet refs/heads/ralph/alias-bypass
+
+# Mutações diretas de refs e variantes de publicação também ficam bloqueadas.
+for forbidden_command in \
+  "branch ralph/direct" \
+  "update-ref refs/heads/ralph/ref-bypass HEAD" \
+  "symbolic-ref HEAD refs/heads/ralph/symbolic-bypass" \
+  "send-pack origin HEAD" \
+  "http-push origin HEAD"; do
+  read -r -a args <<< "$forbidden_command"
+  set +e
+  run_guard -C "$TEST_ROOT/repo" "${args[@]}" >/dev/null 2>"$TEST_ROOT/forbidden.err"
+  status=$?
+  set -e
+  [[ "$status" -eq 2 ]]
+done
+[[ "$("$REAL_GIT" -C "$TEST_ROOT/repo" branch --show-current)" == main ]]
+
+printf 'preserve\n' >> "$TEST_ROOT/repo/base.txt"
+run_guard -C "$TEST_ROOT/repo" reset --hard HEAD >/dev/null 2>"$TEST_ROOT/reset.err"
+! "$REAL_GIT" -C "$TEST_ROOT/repo" diff --quiet -- base.txt
+"$REAL_GIT" -C "$TEST_ROOT/repo" checkout -- base.txt
+
+for publish_command in push send-pack http-push; do
+  set +e
+  PATH="$TEST_ROOT/bin:$PATH" \
+    RALPH_REAL_GIT="$REAL_GIT" \
+    RALPH_GIT_PUSH_ENABLED=0 \
+    RALPH_EXPLICIT_PUSH=0 \
+    "$GUARD" -C "$TEST_ROOT/repo" "$publish_command" origin main >/dev/null 2>"$TEST_ROOT/$publish_command.err"
+  publish_status=$?
+  set -e
+  [[ "$publish_status" -eq 2 ]]
+done
+
+cat > "$TEST_ROOT/fake-codex.sh" <<'FAKE'
 #!/usr/bin/env bash
-set -u
-cat >/dev/null
+set -euo pipefail
+prompt="$(cat)"
+printf '%s' "$prompt" > "$FAKE_PROMPT_CAPTURE"
+[[ -z "${RALPH_REAL_GIT:-}" ]]
+[[ -z "${RALPH_GITHUB_TOKEN:-}" ]]
+[[ -z "${GITHUB_TOKEN:-}" ]]
+[[ -z "${GH_TOKEN:-}" ]]
+[[ "${GIT_TERMINAL_PROMPT:-}" == 0 ]]
+[[ "${GCM_INTERACTIVE:-}" == never ]]
+git -C "$PWD" checkout -B ralph/agent-bypass >/dev/null 2>"$FAKE_CHECKOUT_CAPTURE"
+printf '%s' "$?" > "$FAKE_CHECKOUT_STATUS"
+set +e
+git -C "$PWD" push origin HEAD >/dev/null 2>"$FAKE_PUSH_CAPTURE"
+printf '%s' "$?" > "$FAKE_PUSH_STATUS"
+set -e
+printf 'implemented\n' > implemented.txt
+FAKE
+chmod +x "$TEST_ROOT/fake-codex.sh"
 
-git checkout -b should-not-exist >/dev/null 2>"${RALPH_SMOKE_TMP}/checkout.err"
-checkout_code=$?
-git push origin HEAD >/dev/null 2>"${RALPH_SMOKE_TMP}/push.err"
-push_code=$?
-printf 'checkout_code=%s\npush_code=%s\n' "$checkout_code" "$push_code" >"${RALPH_SMOKE_TMP}/codes.txt"
-printf 'wrapper validated\n' > feature.txt
-exit 0
-MOCK
-chmod +x "$BIN_DIR/mock-codex"
+(
+  cd "$TEST_ROOT/repo"
+  PATH="$TEST_ROOT/bin:$PATH" \
+    RALPH_REAL_GIT="$REAL_GIT" \
+    RALPH_CODEX_BIN="$TEST_ROOT/fake-codex.sh" \
+    RALPH_GITHUB_TOKEN=secret-a \
+    GITHUB_TOKEN=secret-b \
+    GH_TOKEN=secret-c \
+    FAKE_PROMPT_CAPTURE="$TEST_ROOT/prompt.txt" \
+    FAKE_CHECKOUT_CAPTURE="$TEST_ROOT/fake-checkout.err" \
+    FAKE_CHECKOUT_STATUS="$TEST_ROOT/fake-checkout.status" \
+    FAKE_PUSH_CAPTURE="$TEST_ROOT/fake-push.err" \
+    FAKE_PUSH_STATUS="$TEST_ROOT/fake-push.status" \
+    "$NODE_BIN" "$WRAPPER" exec <<< 'Implemente a tarefa de teste' 2>"$TEST_ROOT/wrapper.err"
+)
 
-cd "$WRAPPER_REPO"
-"$REAL_GIT" init -q
-"$REAL_GIT" checkout -q -b feature/current
-printf 'base\n' > README.md
-"$REAL_GIT" add README.md
-"$REAL_GIT" -c user.name=Smoke -c user.email=smoke@example.invalid commit -q -m initial
-initial_head="$("$REAL_GIT" rev-parse HEAD)"
+[[ "$(cat "$TEST_ROOT/fake-checkout.status")" -eq 0 ]]
+[[ "$(cat "$TEST_ROOT/fake-push.status")" -eq 2 ]]
+[[ "$("$REAL_GIT" -C "$TEST_ROOT/repo" branch --show-current)" == main ]]
+! "$REAL_GIT" -C "$TEST_ROOT/repo" show-ref --verify --quiet refs/heads/ralph/agent-bypass
+grep -q 'A branch capturada no início é: main' "$TEST_ROOT/prompt.txt"
+grep -q 'Push não realizado' "$TEST_ROOT/wrapper.err"
+[[ "$("$REAL_GIT" -C "$TEST_ROOT/repo" log -1 --pretty=%s)" == 'ralph: Implemente a tarefa de teste' ]]
+"$REAL_GIT" -C "$TEST_ROOT/repo" show --name-only --pretty='' HEAD | grep -q '^implemented.txt$'
 
-printf 'Implemente a alteração do smoke test e valide.\n' | \
-  PATH="$BIN_DIR:$PATH" \
-  RALPH_REAL_GIT="$REAL_GIT" \
-  RALPH_CODEX_BIN="$BIN_DIR/mock-codex" \
-  RALPH_GIT_PUSH_ENABLED=0 \
-  RALPH_EXPLICIT_PUSH=0 \
-  RALPH_SMOKE_TMP="$TMP_ROOT" \
-  "$NODE_BIN" "$WRAPPER" exec - \
-  >"$TMP_ROOT/wrapper.out" 2>"$TMP_ROOT/wrapper.err"
-
-final_branch="$("$REAL_GIT" branch --show-current)"
-final_head="$("$REAL_GIT" rev-parse HEAD)"
-[[ "$final_branch" == "feature/current" ]]
-[[ "$final_head" != "$initial_head" ]]
-[[ -z "$("$REAL_GIT" status --short)" ]]
-! "$REAL_GIT" show-ref --verify --quiet refs/heads/should-not-exist
-grep -q '^checkout_code=0$' "$TMP_ROOT/codes.txt"
-grep -q '^push_code=2$' "$TMP_ROOT/codes.txt"
-grep -q 'Push não realizado\.' "$TMP_ROOT/wrapper.err"
-
-# 3. As duas skills e a política global do Codex devem ser instaladas de modo
-# idempotente a cada inicialização do container.
+# A skill ativa e o alias ralph-codex devem ser instalados de forma idempotente.
 [[ -f "$SOURCE_DIR/ralph-loop/SKILL.md" ]]
 [[ -f "$SOURCE_DIR/ralph-codex/SKILL.md" ]]
-HOME="$HOME_DIR" RALPH_SKILL_SOURCE_DIR="$SOURCE_DIR" "$INSTALLER" >/dev/null
-HOME="$HOME_DIR" RALPH_SKILL_SOURCE_DIR="$SOURCE_DIR" "$INSTALLER" >/dev/null
-[[ -f "$HOME_DIR/.agents/skills/ralph-loop/SKILL.md" ]]
-[[ -f "$HOME_DIR/.agents/skills/ralph-codex/SKILL.md" ]]
-[[ "$(grep -c '<!-- RALPH_GIT_POLICY_START -->' "$HOME_DIR/.codex/AGENTS.md")" -eq 1 ]]
-[[ "$(grep -c '<!-- RALPH_GIT_POLICY_END -->' "$HOME_DIR/.codex/AGENTS.md")" -eq 1 ]]
+HOME="$TEST_ROOT/home" RALPH_SKILL_SOURCE_DIR="$SOURCE_DIR" "$INSTALLER" >/dev/null
+HOME="$TEST_ROOT/home" RALPH_SKILL_SOURCE_DIR="$SOURCE_DIR" "$INSTALLER" >/dev/null
+[[ -f "$TEST_ROOT/home/.agents/skills/ralph-loop/SKILL.md" ]]
+[[ -f "$TEST_ROOT/home/.agents/skills/ralph-codex/SKILL.md" ]]
+[[ "$(grep -c '<!-- RALPH_GIT_POLICY_START -->' "$TEST_ROOT/home/.codex/AGENTS.md")" -eq 1 ]]
+[[ "$(grep -c '<!-- RALPH_GIT_POLICY_END -->' "$TEST_ROOT/home/.codex/AGENTS.md")" -eq 1 ]]
 
-printf 'Ralph Git policy smoke test passed: branch=%s commit=%s push=blocked skills=installed\n' "$final_branch" "$final_head"
+echo 'Ralph Git policy tests passed: current branch preserved, local commit created, push blocked, skills installed.'
