@@ -35,8 +35,10 @@ RUN chmod +x \
       /app/scripts/install-ralph-skill.sh \
       /app/scripts/ralph-git-guard.sh \
       /app/scripts/codex-ralph-wrapper.mjs \
+      /app/scripts/test-ralph-git-guard.sh \
   && ln -sf /app/scripts/ralph-git-guard.sh /usr/local/bin/git \
-  && ln -sf /app/scripts/codex-ralph-wrapper.mjs /usr/local/bin/codex-ralph
+  && ln -sf /app/scripts/codex-ralph-wrapper.mjs /usr/local/bin/codex-ralph \
+  && npm run test:ralph-git-policy
 ENTRYPOINT ["/app/scripts/docker-entrypoint.sh"]
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD wget -qO- http://127.0.0.1:3000/api/health || exit 1
 EXPOSE 3000
