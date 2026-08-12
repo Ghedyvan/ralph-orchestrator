@@ -1,0 +1,325 @@
+name: Apply Ralph provider Git isolation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/apply-ralph-provider-isolation.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-ralph-provider-isolation
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.repository == 'Ghedyvan/ralph-orchestrator'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Add provider isolation and tests
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import json
+
+          module_path = Path('scripts/provider-git-isolation.mjs')
+          module_path.write_text(r'''import {mkdir} from "node:fs/promises";
+          import path from "node:path";
+
+          const SECRET_ENV_KEYS = [
+            "RALPH_GITHUB_TOKEN",
+            "GITHUB_TOKEN",
+            "GH_TOKEN",
+            "RALPH_GITHUB_APP_ID",
+            "RALPH_GITHUB_INSTALLATION_ID",
+            "RALPH_GITHUB_APP_PRIVATE_KEY",
+            "RALPH_GITHUB_APP_PRIVATE_KEY_BASE64",
+          ];
+
+          const ISOLATED_ENV = {
+            GIT_TERMINAL_PROMPT: "0",
+            GIT_ASKPASS: "/bin/false",
+            GIT_SSH_COMMAND: "/bin/false",
+            GIT_CONFIG_GLOBAL: "/dev/null",
+            GIT_CONFIG_SYSTEM: "/dev/null",
+            GH_PROMPT_DISABLED: "1",
+            RALPH_EXPLICIT_PUSH: "0",
+            RALPH_GIT_PUSH_ENABLED: "0",
+          };
+
+          function captureEnvironment(keys) {
+            return new Map(
+              keys.map((key) => [
+                key,
+                {
+                  exists: Object.prototype.hasOwnProperty.call(process.env, key),
+                  value: process.env[key],
+                },
+              ]),
+            );
+          }
+
+          function restoreEnvironment(snapshot) {
+            for (const [key, entry] of snapshot) {
+              if (entry.exists) process.env[key] = entry.value;
+              else delete process.env[key];
+            }
+          }
+
+          export async function runProviderWithoutPushAccess({callback, repoPath, runGit, workspacePath}) {
+            if (typeof callback !== "function") throw new TypeError("callback must be a function");
+            if (typeof runGit !== "function") throw new TypeError("runGit must be a function");
+
+            const emptyGhConfigDir = path.join(workspacePath, ".provider-gh-disabled");
+            await mkdir(emptyGhConfigDir, {recursive: true});
+
+            const environmentKeys = [
+              ...SECRET_ENV_KEYS,
+              ...Object.keys(ISOLATED_ENV),
+              "GH_CONFIG_DIR",
+              "SSH_AUTH_SOCK",
+            ];
+            const environmentSnapshot = captureEnvironment(environmentKeys);
+            let originalPushUrl = "";
+
+            try {
+              originalPushUrl = await runGit(["remote", "get-url", "--push", "origin"], repoPath);
+            } catch {
+              // A repository without origin still receives credential isolation.
+            }
+
+            try {
+              if (originalPushUrl) {
+                await runGit(["remote", "set-url", "--push", "origin", "disabled://ralph-no-push"], repoPath);
+              }
+
+              for (const key of SECRET_ENV_KEYS) delete process.env[key];
+              delete process.env.SSH_AUTH_SOCK;
+              Object.assign(process.env, ISOLATED_ENV, {GH_CONFIG_DIR: emptyGhConfigDir});
+
+              return await callback();
+            } finally {
+              restoreEnvironment(environmentSnapshot);
+              if (originalPushUrl) {
+                await runGit(["remote", "set-url", "--push", "origin", originalPushUrl], repoPath);
+              }
+            }
+          }
+          ''')
+
+          # Remove the YAML block indentation from the generated module.
+          module_source = module_path.read_text()
+          module_source = '\n'.join(line[10:] if line.startswith('          ') else line for line in module_source.splitlines()) + '\n'
+          module_path.write_text(module_source)
+
+          worker_path = Path('scripts/worker.mjs')
+          worker = worker_path.read_text()
+          import_line = 'import {providerReady, routeProvider, runProvider} from "./providers.mjs";\n'
+          isolation_import = 'import {runProviderWithoutPushAccess} from "./provider-git-isolation.mjs";\n'
+          if isolation_import not in worker:
+              if import_line not in worker:
+                  raise RuntimeError('Unable to find provider import in worker.mjs')
+              worker = worker.replace(import_line, import_line + isolation_import, 1)
+
+          old_call = '''    providerResult = await runProvider({
+            provider: selectedProvider,
+            project,
+            run: freshRun,
+            task: freshTask,
+            workspacePath,
+          });
+          '''
+          new_call = '''    providerResult = await runProviderWithoutPushAccess({
+            callback: () =>
+              runProvider({
+                provider: selectedProvider,
+                project,
+                run: freshRun,
+                task: freshTask,
+                workspacePath,
+              }),
+            repoPath: gitResult.repoPath,
+            runGit,
+            workspacePath,
+          });
+          '''
+          old_call = '\n'.join(line[10:] if line.startswith('          ') else line for line in old_call.splitlines()) + '\n'
+          new_call = '\n'.join(line[10:] if line.startswith('          ') else line for line in new_call.splitlines()) + '\n'
+          if 'providerResult = await runProviderWithoutPushAccess({' not in worker:
+              if old_call not in worker:
+                  raise RuntimeError('Unable to find provider invocation in worker.mjs')
+              worker = worker.replace(old_call, new_call, 1)
+          worker_path.write_text(worker)
+
+          test_path = Path('scripts/test-provider-git-isolation.mjs')
+          test_path.write_text(r'''#!/usr/bin/env node
+          import assert from "node:assert/strict";
+          import {mkdtemp, mkdir, rm, writeFile} from "node:fs/promises";
+          import os from "node:os";
+          import path from "node:path";
+          import {spawnSync} from "node:child_process";
+          import {runProviderWithoutPushAccess} from "./provider-git-isolation.mjs";
+
+          function invokeGit(args, cwd) {
+            return spawnSync("/usr/bin/git", args, {
+              cwd,
+              encoding: "utf8",
+              env: process.env,
+            });
+          }
+
+          function git(args, cwd) {
+            const result = invokeGit(args, cwd);
+            if (result.status !== 0) {
+              throw new Error(`git ${args.join(" ")} failed: ${result.stderr || result.stdout}`);
+            }
+            return `${result.stdout}${result.stderr}`.trim();
+          }
+
+          const root = await mkdtemp(path.join(os.tmpdir(), "ralph-provider-isolation-"));
+          const remotePath = path.join(root, "remote.git");
+          const repoPath = path.join(root, "repo");
+          const previousGithubToken = process.env.GITHUB_TOKEN;
+
+          try {
+            await mkdir(repoPath, {recursive: true});
+            git(["init", "--bare", remotePath], root);
+            git(["init", "-b", "feature/current"], repoPath);
+            git(["config", "user.name", "Ralph Test"], repoPath);
+            git(["config", "user.email", "ralph-test@example.invalid"], repoPath);
+            await writeFile(path.join(repoPath, "README.md"), "initial\n");
+            git(["add", "README.md"], repoPath);
+            git(["commit", "-m", "initial"], repoPath);
+            git(["remote", "add", "origin", remotePath], repoPath);
+            git(["push", "-u", "origin", "feature/current"], repoPath);
+
+            const remoteHeadBefore = git(["rev-parse", "refs/heads/feature/current"], remotePath);
+            await writeFile(path.join(repoPath, "result.txt"), "local only\n");
+            git(["add", "result.txt"], repoPath);
+            git(["commit", "-m", "local only"], repoPath);
+            process.env.GITHUB_TOKEN = "must-not-reach-provider";
+
+            const result = await runProviderWithoutPushAccess({
+              callback: async () => {
+                assert.equal(process.env.GITHUB_TOKEN, undefined);
+                assert.equal(process.env.RALPH_GIT_PUSH_ENABLED, "0");
+                assert.equal(process.env.RALPH_EXPLICIT_PUSH, "0");
+                assert.equal(git(["branch", "--show-current"], repoPath), "feature/current");
+
+                const pushAttempt = invokeGit(["push", "origin", "HEAD:feature/current"], repoPath);
+                assert.notEqual(pushAttempt.status, 0, "absolute /usr/bin/git push must be blocked");
+                return "blocked";
+              },
+              repoPath,
+              runGit: async (args, cwd) => git(args, cwd),
+              workspacePath: root,
+            });
+
+            assert.equal(result, "blocked");
+            assert.equal(process.env.GITHUB_TOKEN, "must-not-reach-provider");
+            assert.equal(git(["remote", "get-url", "--push", "origin"], repoPath), remotePath);
+            assert.equal(git(["branch", "--show-current"], repoPath), "feature/current");
+            assert.equal(git(["rev-parse", "refs/heads/feature/current"], remotePath), remoteHeadBefore);
+            console.log("Ralph provider Git isolation: OK");
+          } finally {
+            if (previousGithubToken === undefined) delete process.env.GITHUB_TOKEN;
+            else process.env.GITHUB_TOKEN = previousGithubToken;
+            await rm(root, {recursive: true, force: true});
+          }
+          ''')
+          test_source = test_path.read_text()
+          test_source = '\n'.join(line[10:] if line.startswith('          ') else line for line in test_source.splitlines()) + '\n'
+          test_path.write_text(test_source)
+
+          package_path = Path('package.json')
+          package_data = json.loads(package_path.read_text())
+          package_data.setdefault('scripts', {})['test:ralph-provider-isolation'] = 'node scripts/test-provider-git-isolation.mjs'
+          package_path.write_text(json.dumps(package_data, indent=2, ensure_ascii=False) + '\n')
+
+          policy_workflow = Path('.github/workflows/ralph-policy-check.yml')
+          policy_workflow.parent.mkdir(parents=True, exist_ok=True)
+          policy_workflow.write_text('\n'.join([
+              'name: Ralph Git policy check',
+              '',
+              'on:',
+              '  push:',
+              '    branches:',
+              '      - main',
+              '    paths:',
+              '      - scripts/worker.mjs',
+              '      - scripts/provider-git-isolation.mjs',
+              '      - scripts/test-provider-git-isolation.mjs',
+              '      - scripts/ralph-git-guard.sh',
+              '      - scripts/codex-ralph-wrapper.mjs',
+              '      - .agents/skills/ralph-loop/SKILL.md',
+              '      - .agents/skills/ralph-codex/SKILL.md',
+              '      - package.json',
+              '      - .github/workflows/ralph-policy-check.yml',
+              '  pull_request:',
+              '    paths:',
+              '      - scripts/worker.mjs',
+              '      - scripts/provider-git-isolation.mjs',
+              '      - scripts/test-provider-git-isolation.mjs',
+              '      - scripts/ralph-git-guard.sh',
+              '      - scripts/codex-ralph-wrapper.mjs',
+              '      - .agents/skills/ralph-loop/SKILL.md',
+              '      - .agents/skills/ralph-codex/SKILL.md',
+              '      - package.json',
+              '      - .github/workflows/ralph-policy-check.yml',
+              '',
+              'permissions:',
+              '  contents: read',
+              '',
+              'jobs:',
+              '  validate:',
+              '    runs-on: ubuntu-latest',
+              '    steps:',
+              '      - uses: actions/checkout@v4',
+              '      - name: Validate worker syntax and Git policy',
+              '        run: |',
+              '          node --check scripts/worker.mjs',
+              '          node --check scripts/provider-git-isolation.mjs',
+              '          node scripts/test-worker-current-branch-policy.mjs',
+              '          node scripts/test-provider-git-isolation.mjs',
+              '          bash scripts/test-ralph-git-guard.sh',
+              '',
+          ]))
+          PY
+
+      - name: Validate isolation
+        shell: bash
+        run: |
+          node --check scripts/worker.mjs
+          node --check scripts/provider-git-isolation.mjs
+          node scripts/test-worker-current-branch-policy.mjs
+          node scripts/test-provider-git-isolation.mjs
+          bash scripts/test-ralph-git-guard.sh
+
+      - name: Commit isolation and remove migration workflows
+        shell: bash
+        run: |
+          rm -f .github/workflows/apply-ralph-current-branch-policy.yml
+          rm -f .github/workflows/apply-ralph-current-branch-policy-v2.yml
+          rm -f .github/workflows/apply-ralph-current-branch-policy-v3.yml
+          rm -f .github/workflows/apply-ralph-current-branch-policy-v4.yml
+          rm -f .github/workflows/apply-ralph-provider-isolation.yml
+          git config user.name "Ralph Policy Maintainer"
+          git config user.email "ralph-policy@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Provider isolation already applied."
+            exit 0
+          fi
+          git commit -m "Block automatic Git push from Ralph providers"
+          git push origin HEAD:main
