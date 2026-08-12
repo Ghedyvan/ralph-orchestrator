@@ -6,12 +6,17 @@ on:
       - ".agents/skills/ralph-loop/**"
       - ".agents/skills/ralph-codex/**"
       - "scripts/worker.mjs"
+      - "scripts/build-worker-current-branch.mjs"
+      - "scripts/providers-current-branch.mjs"
       - "scripts/ralph-git-guard.sh"
       - "scripts/codex-ralph-wrapper.mjs"
       - "scripts/docker-entrypoint.sh"
       - "scripts/install-ralph-skill.sh"
-      - "scripts/test-ralph-policy.sh"
       - "scripts/test-ralph-git-guard.sh"
+      - "scripts/test-ralph-policy.sh"
+      - "scripts/test-worker-current-branch.mjs"
+      - "docs/ralph-worker-current-branch.md"
+      - "package.json"
       - "Dockerfile"
       - ".github/workflows/ralph-policy.yml"
   pull_request:
@@ -19,12 +24,17 @@ on:
       - ".agents/skills/ralph-loop/**"
       - ".agents/skills/ralph-codex/**"
       - "scripts/worker.mjs"
+      - "scripts/build-worker-current-branch.mjs"
+      - "scripts/providers-current-branch.mjs"
       - "scripts/ralph-git-guard.sh"
       - "scripts/codex-ralph-wrapper.mjs"
       - "scripts/docker-entrypoint.sh"
       - "scripts/install-ralph-skill.sh"
-      - "scripts/test-ralph-policy.sh"
       - "scripts/test-ralph-git-guard.sh"
+      - "scripts/test-ralph-policy.sh"
+      - "scripts/test-worker-current-branch.mjs"
+      - "docs/ralph-worker-current-branch.md"
+      - "package.json"
       - "Dockerfile"
       - ".github/workflows/ralph-policy.yml"
   workflow_dispatch:
@@ -41,7 +51,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Run Ralph policy regression test
+      - name: Run Ralph policy regression suite
         env:
           RALPH_APP_ROOT: ${{ github.workspace }}
           RALPH_SKILL_SOURCE_DIR: ${{ github.workspace }}/.agents/skills
@@ -52,5 +62,6 @@ jobs:
             scripts/install-ralph-skill.sh \
             scripts/ralph-git-guard.sh \
             scripts/codex-ralph-wrapper.mjs \
+            scripts/test-ralph-git-guard.sh \
             scripts/test-ralph-policy.sh
-          scripts/test-ralph-policy.sh
+          npm run test:ralph-git-policy
