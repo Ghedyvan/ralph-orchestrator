@@ -1,0 +1,52 @@
+name: Ralph current-branch policy
+
+on:
+  push:
+    paths:
+      - ".agents/skills/ralph-loop/**"
+      - ".agents/skills/ralph-codex/**"
+      - "scripts/ralph-git-guard.sh"
+      - "scripts/codex-ralph-wrapper.mjs"
+      - "scripts/docker-entrypoint.sh"
+      - "scripts/install-ralph-skill.sh"
+      - "scripts/test-ralph-policy.sh"
+      - "Dockerfile"
+      - ".github/workflows/ralph-policy.yml"
+  pull_request:
+    paths:
+      - ".agents/skills/ralph-loop/**"
+      - ".agents/skills/ralph-codex/**"
+      - "scripts/ralph-git-guard.sh"
+      - "scripts/codex-ralph-wrapper.mjs"
+      - "scripts/docker-entrypoint.sh"
+      - "scripts/install-ralph-skill.sh"
+      - "scripts/test-ralph-policy.sh"
+      - "Dockerfile"
+      - ".github/workflows/ralph-policy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  policy-regression:
+    name: Preserve branch, commit locally, block push
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Ralph policy regression test
+        env:
+          RALPH_APP_ROOT: ${{ github.workspace }}
+          RALPH_SKILL_SOURCE_DIR: ${{ github.workspace }}/.agents/skills
+          RALPH_REAL_GIT: /usr/bin/git
+        run: |
+          chmod +x \
+            scripts/docker-entrypoint.sh \
+            scripts/install-ralph-skill.sh \
+            scripts/ralph-git-guard.sh \
+            scripts/codex-ralph-wrapper.mjs \
+            scripts/test-ralph-policy.sh
+          scripts/test-ralph-policy.sh
