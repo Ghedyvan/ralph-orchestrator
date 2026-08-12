@@ -1,0 +1,455 @@
+name: Apply Ralph current-branch policy v2
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/apply-ralph-current-branch-policy-v2.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-ralph-current-branch-policy-v2
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.repository == 'Ghedyvan/ralph-orchestrator'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Rewrite worker and add regression checks
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import json
+          import re
+
+          worker_path = Path('scripts/worker.mjs')
+          source = worker_path.read_text()
+
+          def replace_once(label, old, new):
+              global source
+              if old not in source:
+                  raise RuntimeError(f'Unable to apply worker transformation: {label}')
+              source = source.replace(old, new, 1)
+
+          if 'async function finalizeGitWorkspace(' not in source:
+              replace_once(
+                  'auto commit constant',
+                  'const GIT_ENABLED = process.env.RALPH_GIT_ENABLED === "1";\n',
+                  'const GIT_ENABLED = process.env.RALPH_GIT_ENABLED === "1";\n'
+                  'const GIT_AUTO_COMMIT_ENABLED = process.env.RALPH_GIT_AUTO_COMMIT_ENABLED !== "0";\n',
+              )
+
+              git_functions = r'''async function prepareGitWorkspace(state, run, project, task, workspacePath) {
+            const repoPath = path.join(workspacePath, "repo");
+            if (!GIT_ENABLED) {
+              const branchName = task.branchName || project.defaultBranch || "";
+              addLog(state, run.id, "info", "Git real desabilitado. Nenhuma branch sera criada ou alterada.");
+              return {
+                changedFiles: [],
+                diffSummary: "Git dry-run: clone/fetch nao executado.",
+                branchName,
+                repoPath,
+                initialHead: "",
+                hadPreexistingChanges: false,
+              };
+            }
+
+            await mkdir(workspacePath, {recursive: true});
+            if (!(await pathExists(path.join(repoPath, ".git"))) && (await pathExists(repoPath))) {
+              await rm(repoPath, {force: true, recursive: true});
+            }
+
+            if (!(await pathExists(repoPath))) {
+              try {
+                await runGit(await cloneArgs(project.repoUrl, repoPath, project.defaultBranch), ROOT);
+              } catch (error) {
+                if (isGitAuthFailure(error)) {
+                  throw new Error(
+                    `Clone Git falhou por autenticacao/acesso.${gitAuthHint(project.repoUrl)} ${sanitizeGitError(error)}`,
+                  );
+                }
+                addLog(
+                  state,
+                  run.id,
+                  "warn",
+                  `Clone da branch configurada ${project.defaultBranch || "(default remoto)"} falhou; tentando a branch default do remoto sem criar branch. ${sanitizeGitError(error)}`,
+                );
+                try {
+                  await runGit(await cloneArgs(project.repoUrl, repoPath), ROOT);
+                } catch (fallbackError) {
+                  if (isGitAuthFailure(fallbackError)) {
+                    throw new Error(
+                      `Clone Git falhou por autenticacao/acesso.${gitAuthHint(project.repoUrl)} ${sanitizeGitError(fallbackError)}`,
+                    );
+                  }
+                  throw fallbackError;
+                }
+              }
+            } else {
+              addLog(state, run.id, "info", "Workspace Git existente detectado; preservando branch, HEAD e alteracoes locais.");
+            }
+
+            const branchName = await runGit(["branch", "--show-current"], repoPath);
+            if (!branchName) {
+              throw new Error("Workspace Git esta em detached HEAD. Ralph nao cria branch automaticamente.");
+            }
+
+            const initialHead = await runGit(["rev-parse", "HEAD"], repoPath);
+            const changedOutput = await runGit(["status", "--short"], repoPath);
+            const diffSummary = await runGit(["diff", "--stat"], repoPath);
+            const changedFiles = changedFilesFromStatus(changedOutput);
+            task.branchName = branchName;
+            await writeFile(path.join(workspacePath, "DIFF_SUMMARY.txt"), diffSummary || "Sem diff.");
+            await writeFile(path.join(workspacePath, "CHANGED_FILES.json"), `${JSON.stringify(changedFiles, null, 2)}\n`);
+            addLog(
+              state,
+              run.id,
+              "info",
+              `Git workspace pronto em ${repoPath}. Branch preservada: ${branchName}. Push automatico desabilitado.`,
+            );
+            return {
+              changedFiles,
+              diffSummary: diffSummary || "Sem diff.",
+              branchName,
+              repoPath,
+              initialHead,
+              hadPreexistingChanges: Boolean(changedOutput.trim()),
+            };
+          }
+
+          function changedFilesFromStatus(statusOutput) {
+            return statusOutput
+              .split("\n")
+              .map((line) => {
+                const rawPath = line.length > 3 ? line.slice(3).trim() : line.trim();
+                const renameSeparator = rawPath.lastIndexOf(" -> ");
+                return renameSeparator >= 0 ? rawPath.slice(renameSeparator + 4) : rawPath;
+              })
+              .filter(Boolean);
+          }
+
+          function isForbiddenGitPath(filePath) {
+            return FORBIDDEN_PATHS.some(
+              (forbidden) =>
+                filePath === forbidden ||
+                filePath.endsWith(`/${forbidden}`) ||
+                filePath.includes(`/${forbidden}/`),
+            );
+          }
+
+          function taskCommitMessage(task) {
+            const title = String(task.title || "aplicar alteracoes da tarefa")
+              .replace(/\s+/g, " ")
+              .trim()
+              .slice(0, 130);
+            return `ralph: ${title || "aplicar alteracoes da tarefa"}`;
+          }
+
+          async function finalizeGitWorkspace(state, run, task, gitResult) {
+            const {branchName, repoPath, initialHead, hadPreexistingChanges} = gitResult;
+            if (!GIT_ENABLED || !branchName || !initialHead) {
+              return {
+                branchName,
+                commitShas: [],
+                changedFiles: gitResult.changedFiles,
+                diffSummary: gitResult.diffSummary,
+              };
+            }
+
+            const activeBranch = await runGit(["branch", "--show-current"], repoPath);
+            if (activeBranch !== branchName) {
+              throw new Error(`Branch alterada durante a execucao: esperado ${branchName}, atual ${activeBranch || "detached HEAD"}.`);
+            }
+
+            const headBeforeAutoCommit = await runGit(["rev-parse", "HEAD"], repoPath);
+            let commitShas = [];
+            if (headBeforeAutoCommit !== initialHead) {
+              const existingCommits = await runGit(["rev-list", "--reverse", `${initialHead}..${headBeforeAutoCommit}`], repoPath);
+              commitShas = existingCommits.split("\n").filter(Boolean);
+            }
+
+            const statusOutput = await runGit(["status", "--short"], repoPath);
+            const changedFiles = changedFilesFromStatus(statusOutput);
+            if (!statusOutput.trim()) {
+              return {
+                branchName,
+                commitShas,
+                changedFiles,
+                diffSummary: commitShas.length
+                  ? `Commits locais criados: ${commitShas.join(", ")}`
+                  : "Arvore Git limpa; nenhum commit adicional necessario.",
+              };
+            }
+
+            if (!GIT_AUTO_COMMIT_ENABLED) {
+              addLog(state, run.id, "warn", "Commit local automatico desabilitado por RALPH_GIT_AUTO_COMMIT_ENABLED=0.");
+              return {
+                branchName,
+                commitShas,
+                changedFiles,
+                diffSummary: await runGit(["diff", "--stat"], repoPath),
+              };
+            }
+
+            if (hadPreexistingChanges) {
+              addLog(
+                state,
+                run.id,
+                "warn",
+                "Commit automatico ignorado porque o workspace ja possuia alteracoes antes da task; nenhuma mudanca preexistente foi adicionada ao staging.",
+              );
+              return {
+                branchName,
+                commitShas,
+                changedFiles,
+                diffSummary: await runGit(["diff", "--stat"], repoPath),
+              };
+            }
+
+            const forbiddenFiles = changedFiles.filter(isForbiddenGitPath);
+            if (forbiddenFiles.length > 0) {
+              throw new Error(`Commit bloqueado por arquivos proibidos: ${forbiddenFiles.join(", ")}`);
+            }
+
+            const branchBeforeCommit = await runGit(["branch", "--show-current"], repoPath);
+            if (branchBeforeCommit !== branchName) {
+              throw new Error(`Branch mudou antes do commit: esperado ${branchName}, atual ${branchBeforeCommit || "detached HEAD"}.`);
+            }
+
+            await runGit(["add", "-A", "--", "."], repoPath);
+            const stagedFiles = await runGit(["diff", "--cached", "--name-only"], repoPath);
+            if (stagedFiles.trim()) {
+              await runGit(
+                [
+                  "-c",
+                  "user.name=Ralph Orchestrator",
+                  "-c",
+                  "user.email=ralph-orchestrator@example.invalid",
+                  "commit",
+                  "-m",
+                  taskCommitMessage(task),
+                ],
+                repoPath,
+              );
+              commitShas.push(await runGit(["rev-parse", "HEAD"], repoPath));
+            }
+
+            const finalBranch = await runGit(["branch", "--show-current"], repoPath);
+            if (finalBranch !== branchName) {
+              throw new Error(`Branch mudou depois do commit: esperado ${branchName}, atual ${finalBranch || "detached HEAD"}.`);
+            }
+
+            const finalStatus = await runGit(["status", "--short"], repoPath);
+            return {
+              branchName,
+              commitShas: [...new Set(commitShas)],
+              changedFiles: changedFilesFromStatus(finalStatus),
+              diffSummary: commitShas.length
+                ? `Commits locais criados: ${[...new Set(commitShas)].join(", ")}`
+                : "Nenhum commit local criado.",
+            };
+          }
+
+          function runningProjectIds'''
+
+              source, count = re.subn(
+                  r'async function prepareGitWorkspace[\s\S]*?\n}\n\nfunction runningProjectIds',
+                  lambda _: git_functions,
+                  source,
+                  count=1,
+              )
+              if count != 1:
+                  raise RuntimeError('Unable to replace prepare/finalize Git workspace')
+
+              replace_once(
+                  'legacy task branch name',
+                  '  const branchName = `ralph/task-${task.id.slice(0, 8)}`;\n',
+                  '  let branchName = project.defaultBranch || "";\n',
+              )
+              replace_once(
+                  'branch preparation status text',
+                  '    aiThought: "Validando acesso ao repositorio e criando branch isolada para a story.",\n',
+                  '    aiThought: "Validando acesso ao repositorio e preservando a branch que ja esta ativa.",\n',
+              )
+              replace_once(
+                  'prepare workspace call',
+                  '    gitResult = await prepareGitWorkspace(state, run, project, task, workspacePath, branchName);\n',
+                  '    gitResult = await prepareGitWorkspace(state, run, project, task, workspacePath);\n'
+                  '    branchName = gitResult.branchName;\n'
+                  '    task.branchName = branchName;\n'
+                  '    run.branchName = branchName;\n'
+                  '    await writeWorkspaceFiles(workspacePath, project, task, run);\n',
+              )
+
+              completion_block = r'''  let finalGitResult;
+          try {
+            finalGitResult = await finalizeGitWorkspace(fresh, freshRun, freshTask, gitResult);
+          } catch (error) {
+            freshTask.status = "blocked";
+            setTaskProgress(freshTask, {
+              currentWork: "Bloqueado ao finalizar commit local.",
+              aiThought: "Bloqueio operacional: a politica de branch ou commit local impediu a finalizacao segura.",
+              progressPercent: 90,
+            });
+            freshRun.status = "failed";
+            freshRun.finishedAt = now();
+            freshRun.summary = `Falha ao finalizar Git workspace. ${sanitizeGitError(error)} Push nao realizado.`;
+            addLog(fresh, run.id, "error", freshRun.summary);
+            await writeState(fresh);
+            return true;
+          }
+
+          freshTask.status = "review";
+          freshTask.branchName = finalGitResult.branchName;
+          freshTask.workspacePath = workspacePath;
+          setTaskProgress(freshTask, {
+            currentWork: "Aguardando review humano dos commits locais.",
+            aiThought: "Execucao terminou na branch preservada; nenhum push foi realizado.",
+            progressPercent: 100,
+          });
+          freshRun.status = "completed";
+          freshRun.finishedAt = now();
+          freshRun.branchName = finalGitResult.branchName;
+          freshRun.commitShas = finalGitResult.commitShas;
+          const commitText = finalGitResult.commitShas.length
+            ? `Commits locais: ${finalGitResult.commitShas.join(", ")}.`
+            : "Nenhum novo commit local foi necessario.";
+          freshRun.summary = `${providerResult.summary} Branch preservada: ${finalGitResult.branchName}. ${commitText} Push nao realizado.`;
+          freshRun.changedFiles = [
+            ...new Set([
+              ...gitResult.changedFiles,
+              ...(providerResult.changedFiles || []),
+              ...finalGitResult.changedFiles,
+            ]),
+          ];
+          freshRun.diffSummary = [gitResult.diffSummary, providerResult.diffSummary, finalGitResult.diffSummary]
+            .filter(Boolean)
+            .join("\n\n");
+          addLog(fresh, run.id, "info", freshRun.summary);
+          await writeState(fresh);
+          return true;
+          }
+
+          async function main'''
+
+              source, count = re.subn(
+                  r'  freshTask\.status = "review";[\s\S]*?\n  return true;\n}\n\nasync function main',
+                  lambda _: completion_block,
+                  source,
+                  count=1,
+              )
+              if count != 1:
+                  raise RuntimeError('Unable to replace completion and local commit flow')
+
+              worker_path.write_text(source)
+
+          test_path = Path('scripts/test-worker-current-branch-policy.mjs')
+          test_path.write_text(r'''#!/usr/bin/env node
+          import assert from "node:assert/strict";
+          import {readFileSync} from "node:fs";
+
+          const source = readFileSync(new URL("./worker.mjs", import.meta.url), "utf8");
+          assert.doesNotMatch(source, /ralph\/task-\$\{task\.id/);
+          assert.doesNotMatch(source, /runGit\(\["checkout", "-B"/);
+          assert.match(source, /const GIT_AUTO_COMMIT_ENABLED/);
+          assert.match(source, /async function finalizeGitWorkspace/);
+          assert.match(source, /branch", "--show-current"/);
+          assert.match(source, /Push nao realizado/);
+          console.log("Ralph worker current-branch policy: OK");
+          ''')
+
+          package_path = Path('package.json')
+          package_data = json.loads(package_path.read_text())
+          package_data.setdefault('scripts', {})['test:ralph-worker-policy'] = 'node scripts/test-worker-current-branch-policy.mjs'
+          package_path.write_text(json.dumps(package_data, indent=2, ensure_ascii=False) + '\n')
+
+          readme_path = Path('README.md')
+          readme = readme_path.read_text()
+          readme = readme.replace(
+              '- Git workspace com clone/branch/diff/commit/push/PR por aprovacao;',
+              '- Git workspace que preserva a branch ativa, cria commits locais e nunca faz push/PR automaticamente;',
+          )
+          readme = readme.replace(
+              '10. Usuario aprovado pode acionar Git status, Commit, Push e PR.',
+              '10. O commit local ocorre na branch ativa; Push e PR exigem uma acao explicita do usuario.',
+          )
+          readme = readme.replace(
+              '2. Habilite `RALPH_GIT_ENABLED=1` para clone/branch/diff.',
+              '2. Habilite `RALPH_GIT_ENABLED=1` para clone, preservacao da branch ativa e diff.',
+          )
+          readme_path.write_text(readme)
+
+          policy_workflow = Path('.github/workflows/ralph-policy-check.yml')
+          policy_workflow.write_text('''name: Ralph Git policy check
+
+          on:
+            push:
+              branches:
+                - main
+              paths:
+                - scripts/worker.mjs
+                - scripts/ralph-git-guard.sh
+                - scripts/codex-ralph-wrapper.mjs
+                - .agents/skills/ralph-loop/SKILL.md
+                - .agents/skills/ralph-codex/SKILL.md
+                - package.json
+                - .github/workflows/ralph-policy-check.yml
+            pull_request:
+              paths:
+                - scripts/worker.mjs
+                - scripts/ralph-git-guard.sh
+                - scripts/codex-ralph-wrapper.mjs
+                - .agents/skills/ralph-loop/SKILL.md
+                - .agents/skills/ralph-codex/SKILL.md
+                - package.json
+                - .github/workflows/ralph-policy-check.yml
+
+          permissions:
+            contents: read
+
+          jobs:
+            validate:
+              runs-on: ubuntu-latest
+              steps:
+                - uses: actions/checkout@v4
+                - name: Validate worker syntax and Git policy
+                  run: |
+                    node --check scripts/worker.mjs
+                    node scripts/test-worker-current-branch-policy.mjs
+                    bash scripts/test-ralph-git-guard.sh
+          ''')
+          PY
+
+      - name: Validate policy
+        shell: bash
+        run: |
+          node --check scripts/worker.mjs
+          node scripts/test-worker-current-branch-policy.mjs
+          bash scripts/test-ralph-git-guard.sh
+
+      - name: Commit directly to main and remove migration workflows
+        shell: bash
+        run: |
+          rm -f .github/workflows/apply-ralph-current-branch-policy.yml
+          rm -f .github/workflows/apply-ralph-current-branch-policy-v2.yml
+          git config user.name "Ralph Policy Maintainer"
+          git config user.email "ralph-policy@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Policy already applied."
+            exit 0
+          fi
+          git commit -m "Fix Ralph worker current-branch commits"
+          git push origin HEAD:main
