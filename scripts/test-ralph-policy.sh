@@ -1,13 +1,28 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_ROOT="${RALPH_APP_ROOT:-/app}"
-REAL_GIT="${RALPH_REAL_GIT:-/usr/bin/git}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEFAULT_APP_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+APP_ROOT="${RALPH_APP_ROOT:-$DEFAULT_APP_ROOT}"
+REAL_GIT="${RALPH_REAL_GIT:-}"
+if [[ -z "$REAL_GIT" ]]; then
+  if [[ -x /usr/local/libexec/ralph-git-real ]]; then
+    REAL_GIT=/usr/local/libexec/ralph-git-real
+  else
+    REAL_GIT="$(command -v git)"
+  fi
+fi
 GUARD="$APP_ROOT/scripts/ralph-git-guard.sh"
 WRAPPER="$APP_ROOT/scripts/codex-ralph-wrapper.mjs"
 ENTRYPOINT="$APP_ROOT/scripts/docker-entrypoint.sh"
 INSTALLER="$APP_ROOT/scripts/install-ralph-skill.sh"
-SKILLS_SOURCE="${RALPH_SKILL_SOURCE_DIR:-/opt/ralph-skills}"
+if [[ -n "${RALPH_SKILL_SOURCE_DIR:-}" ]]; then
+  SKILLS_SOURCE="$RALPH_SKILL_SOURCE_DIR"
+elif [[ -d /opt/ralph-skills ]]; then
+  SKILLS_SOURCE=/opt/ralph-skills
+else
+  SKILLS_SOURCE="$APP_ROOT/.agents/skills"
+fi
 
 temp_dir="$(mktemp -d)"
 trap 'rm -rf "$temp_dir"' EXIT
