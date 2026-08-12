@@ -130,7 +130,7 @@ entry_output="$({
   RALPH_GITHUB_TOKEN=secret-a \
   GITHUB_TOKEN=secret-b \
   GH_TOKEN=secret-c \
-  "$ENTRYPOINT" /usr/bin/env
+  bash "$ENTRYPOINT" /usr/bin/env
 } 2>/dev/null)"
 
 grep -q '^CODEX_COMMAND=codex-ralph exec -$' <<<"$entry_output" || fail "entrypoint did not route Codex through the protected wrapper"
